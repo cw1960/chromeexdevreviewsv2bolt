@@ -15,6 +15,7 @@ interface AuthContextType {
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>
   refreshProfile: () => Promise<void>
+  updateCookiePreferences: (preference: 'accepted' | 'declined') => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const profileFetchPromiseRef = useRef<Promise<void> | null>(null)
 
   const fetchProfile = useCallback(async (userId: string): Promise<void> => {
-    console.log("🔍 Starting DIRECT database profile fetch for user:", userId)
+    console.log("🔍 Starting profile fetch for user:", userId)
     
     // If there's already a profile fetch in progress for this user, return that promise
     if (profileFetchPromiseRef.current) {
@@ -50,97 +51,112 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set loading to true at the start of the fetch process
     setLoading(true)
     
-    const fetchProfileDirect = async (attempt: number = 1): Promise<void> => {
-      const maxAttempts = 2
+    const fetchProfileWithRetry = async (attempt: number = 1): Promise<void> => {
+      const maxAttempts = 2 // Reduced attempts
       const baseDelay = 500 // Reduced delay
       
       try {
-        console.log(`📡 Direct database query attempt ${attempt}/${maxAttempts} for user:`, userId)
-        console.log(`⏰ Starting direct Supabase query at:`, new Date().toISOString())
+        console.log(`📡 Profile fetch attempt ${attempt}/${maxAttempts} for user:`, userId)
+        console.log(`⏰ Starting direct database query at:`, new Date().toISOString())
         
-        // DIRECT DATABASE ACCESS - NO EDGE FUNCTION
-        const { data: user, error } = await withTimeout(
-          supabase
-            .from('users')
-            .select('id, email, name, credit_balance, has_completed_qualification, onboarding_complete, role, subscription_status, exchanges_this_month, last_exchange_reset_date, created_at')
-            .eq('id', userId)
-            .single(),
-          3000 // Fast 3-second timeout
+        // CRITICAL FIX: Use Edge Function instead of direct database query to avoid RLS overhead
+        const { data, error } = await withTimeout(
+          supabase.functions.invoke('fetch-user-profile-for-auth', {
+            body: { userId: userId }
+          }),
+          5000 // 5 second timeout for Edge Function
         )
 
-        console.log(`⏰ Direct Supabase query completed at:`, new Date().toISOString())
+        console.log(`⏰ Database query completed at:`, new Date().toISOString())
 
         if (error) {
-          console.error(`❌ Direct database error (attempt ${attempt}):`, {
-            code: error.code,
+          console.error(`❌ Edge Function error (attempt ${attempt}):`, {
             message: error.message,
-            details: error.details
+            code: error.code || 'EDGE_FUNCTION_ERROR'
           })
           
-          // Handle specific error cases
-          if (error.code === 'PGRST116') {
-            console.log('ℹ️ User profile not found (PGRST116) - this is expected for new users')
-            setProfile(null)
-            return
-          }
-          
-          // Retry on network/timeout errors
+          // For other errors, only retry if it's a retryable error
           const isRetryableError = error.message?.includes('timeout') || 
                                  error.message?.includes('network') ||
-                                 error.message?.includes('fetch') ||
-                                 error.code === 'PGRST301' // Connection error
+                                 error.message?.includes('connection') ||
+                                 error.message?.includes('fetch')
           
           if (attempt < maxAttempts && isRetryableError) {
             const delay = baseDelay * attempt
-            console.log(`⏳ Retrying direct database query in ${delay}ms due to ${error.message}`)
+            console.log(`⏳ Retrying profile fetch in ${delay}ms... (attempt ${attempt + 1}/${maxAttempts})`)
             await new Promise(resolve => setTimeout(resolve, delay))
-            return fetchProfileDirect(attempt + 1)
+            return fetchProfileWithRetry(attempt + 1)
           } else {
-            console.error('💥 Max retries reached for direct database query')
-            setProfile(null)
+            // Don't set profile to null on non-retryable errors
+            console.error('💥 Non-retryable error or max retries reached - keeping existing profile state')
             return
           }
         }
 
-        console.log("✅ Direct database profile fetch successful:", user ? 'profile found' : 'no profile found')
+        // Handle Edge Function response
+        if (!data?.success) {
+          const errorMsg = data?.error || 'Unknown error from Edge Function'
+          console.error(`❌ Edge Function returned error: ${errorMsg}`)
+          
+          // If user not found, this is expected for new users
+          if (errorMsg.includes('not found') || errorMsg.includes('PGRST116')) {
+            console.log('ℹ️ User profile not found - this is expected for new users')
+            setProfile(null)
+            return
+          }
+          throw new Error(errorMsg)
+        }
+
+        // CRITICAL FIX: Extract the user profile from the nested data structure
+        const profileData = data.data?.user || null
+        console.log("✅ Profile fetch successful:", profileData ? 'profile found' : 'no profile found')
         
-        if (user) {
+        if (profileData) {
           console.log("📋 Profile data:", {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            credit_balance: user.credit_balance,
-            has_completed_qualification: user.has_completed_qualification,
-            onboarding_complete: user.onboarding_complete
+            id: profileData.id,
+            email: profileData.email,
+            name: profileData.name,
+            credit_balance: profileData.credit_balance,
+            has_completed_qualification: profileData.has_completed_qualification,
+            onboarding_complete: profileData.onboarding_complete,
+            cookie_preferences: profileData.cookie_preferences,
+            cookie_consent_timestamp: profileData.cookie_consent_timestamp
           })
         }
         
-        setProfile(user)
+        // Update profile state with fetched data
+        setProfile(profileData)
         
       } catch (error) {
-        console.error(`💥 Direct database query threw error (attempt ${attempt}):`, {
+        console.error(`💥 Profile fetch threw error (attempt ${attempt}):`, {
           name: error?.name,
           message: error?.message,
         })
         
+        // Check if it's a timeout error
+        if (error?.message?.includes('timed out')) {
+          console.error('⏰ Profile fetch timeout detected')
+        }
+        
         if (attempt < maxAttempts) {
           const delay = baseDelay * attempt
-          console.log(`⏳ Retrying direct database query in ${delay}ms... (attempt ${attempt + 1}/${maxAttempts})`)
+          console.log(`⏳ Retrying profile fetch in ${delay}ms... (attempt ${attempt + 1}/${maxAttempts})`)
           await new Promise(resolve => setTimeout(resolve, delay))
-          return fetchProfileDirect(attempt + 1)
+          return fetchProfileWithRetry(attempt + 1)
         } else {
-          console.error('💥 Max retries reached for direct database query')
-          setProfile(null)
+          // Don't set profile to null on errors - keep existing state
+          console.error('💥 Max retries reached - keeping existing profile state')
+          return
         }
       }
     }
 
     // Create and store the promise
-    const fetchPromise = fetchProfileDirect().finally(() => {
+    const fetchPromise = fetchProfileWithRetry().finally(() => {
       // Clear the promise reference and set loading to false when done
       profileFetchPromiseRef.current = null
       setLoading(false)
-      console.log("🏁 Direct database profile fetch process completed")
+      console.log("🏁 Profile fetch process completed")
     })
     
     profileFetchPromiseRef.current = fetchPromise
@@ -177,6 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           await fetchProfile(session.user.id)
         } else {
+          // Only clear profile when user is actually signed out
           setProfile(null)
           setLoading(false)
         }
@@ -242,6 +259,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchProfile(user.id)
   }
 
+  const updateCookiePreferences = async (preference: 'accepted' | 'declined') => {
+    if (!user) throw new Error('No user logged in')
+
+    const { error } = await supabase
+      .from('users')
+      .update({ 
+        cookie_preferences: preference,
+        cookie_consent_timestamp: new Date().toISOString(),
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', user.id)
+
+    if (error) {
+      console.error('Update cookie preferences error:', error)
+      throw error
+    }
+
+    // Refresh profile to get updated data
+    await fetchProfile(user.id)
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -253,7 +291,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signOut,
         updateProfile,
-        refreshProfile
+        refreshProfile,
+        updateCookiePreferences
       }}
     >
       {children}

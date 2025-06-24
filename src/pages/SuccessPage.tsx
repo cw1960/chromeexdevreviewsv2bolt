@@ -136,8 +136,8 @@ export function SuccessPage() {
 
         <Stack align="center" gap="md">
           <Text ta="center" c="dimmed">
-            You now have access to all premium features including unlimited extensions,
-            priority reviews, and advanced analytics.
+            You now have access to 3x faster reviews, unlimited extensions,
+            and advanced analytics.
           </Text>
           
           <Button 

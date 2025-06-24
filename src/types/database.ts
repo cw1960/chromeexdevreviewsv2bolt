@@ -14,7 +14,6 @@ export interface Database {
           id: string
           email: string
           name: string | null
-          chrome_store_profile_url: string | null
           credit_balance: number
           subscription_status: string | null
           has_completed_qualification: boolean
@@ -22,7 +21,6 @@ export interface Database {
           updated_at: string
           role: 'admin' | 'moderator' | 'user'
           onboarding_complete: boolean
-          subscription_status: string | null
           exchanges_this_month: number
           last_exchange_reset_date: string | null
         }
@@ -30,7 +28,6 @@ export interface Database {
           id: string
           email: string
           name?: string | null
-          chrome_store_profile_url?: string | null
           credit_balance?: number
           subscription_status?: string | null
           has_completed_qualification?: boolean
@@ -38,7 +35,6 @@ export interface Database {
           updated_at?: string
           role?: 'admin' | 'moderator' | 'user'
           onboarding_complete?: boolean
-          subscription_status?: string | null
           exchanges_this_month?: number
           last_exchange_reset_date?: string | null
         }
@@ -46,7 +42,6 @@ export interface Database {
           id?: string
           email?: string
           name?: string | null
-          chrome_store_profile_url?: string | null
           credit_balance?: number
           subscription_status?: string | null
           has_completed_qualification?: boolean
@@ -54,7 +49,6 @@ export interface Database {
           updated_at?: string
           role?: 'admin' | 'moderator' | 'user'
           onboarding_complete?: boolean
-          subscription_status?: string | null
           exchanges_this_month?: number
           last_exchange_reset_date?: string | null
         }
@@ -72,8 +66,7 @@ export interface Database {
           access_details: string | null
           promo_code: string | null
           promo_code_expires_at: string | null
-          admin_verified: boolean
-          status: 'library' | 'pending_verification' | 'verified' | 'queued' | 'assigned' | 'reviewed' | 'completed' | 'rejected'
+          status: 'library' | 'verified' | 'queued' | 'assigned' | 'reviewed' | 'completed' | 'rejected'
           rejection_reason: string | null
           queue_position: number | null
           submitted_to_queue_at: string | null
@@ -92,8 +85,7 @@ export interface Database {
           access_details?: string | null
           promo_code?: string | null
           promo_code_expires_at?: string | null
-          admin_verified?: boolean
-          status?: 'library' | 'pending_verification' | 'verified' | 'queued' | 'assigned' | 'reviewed' | 'completed' | 'rejected'
+          status?: 'library' | 'verified' | 'queued' | 'assigned' | 'reviewed' | 'completed' | 'rejected'
           rejection_reason?: string | null
           queue_position?: number | null
           submitted_to_queue_at?: string | null
@@ -112,8 +104,7 @@ export interface Database {
           access_details?: string | null
           promo_code?: string | null
           promo_code_expires_at?: string | null
-          admin_verified?: boolean
-          status?: 'library' | 'pending_verification' | 'verified' | 'queued' | 'assigned' | 'reviewed' | 'completed' | 'rejected'
+          status?: 'library' | 'verified' | 'queued' | 'assigned' | 'reviewed' | 'completed' | 'rejected'
           rejection_reason?: string | null
           queue_position?: number | null
           submitted_to_queue_at?: string | null
@@ -233,7 +224,7 @@ export interface Database {
         Row: {
           id: string
           created_at: string
-          to: string
+          to_email: string
           type: string
           status: string
           subject: string
@@ -243,7 +234,7 @@ export interface Database {
         Insert: {
           id?: string
           created_at?: string
-          to: string
+          to_email: string
           type: string
           status: string
           subject: string
@@ -253,7 +244,7 @@ export interface Database {
         Update: {
           id?: string
           created_at?: string
-          to?: string
+          to_email?: string
           type?: string
           status?: string
           subject?: string
@@ -261,6 +252,35 @@ export interface Database {
           error_message?: string | null
         }
       }
+      review_relationships: {
+        Row: {
+          id: string
+          reviewer_id: string
+          reviewed_owner_id: string
+          extension_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          reviewer_id: string
+          reviewed_owner_id: string
+          extension_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          reviewer_id?: string
+          reviewed_owner_id?: string
+          extension_id?: string
+          created_at?: string
+        }
+      }
     }
   }
+  cookie_preferences: 'accepted' | 'declined' | 'not_set'
+  cookie_consent_timestamp: string | null
+  cookie_preferences?: 'accepted' | 'declined' | 'not_set'
+  cookie_consent_timestamp?: string | null
+  cookie_preferences?: 'accepted' | 'declined' | 'not_set'
+  cookie_consent_timestamp?: string | null
 }

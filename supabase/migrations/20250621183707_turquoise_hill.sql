@@ -5,6 +5,8 @@
     - `subscription_status` (text) - tracks if user is 'free' or 'premium'
     - `exchanges_this_month` (integer) - tracks monthly submission count for free users
     - `last_exchange_reset_date` (timestamptz) - tracks when monthly count was last reset
+    - `cookie_preferences` (text) - tracks user's cookie consent preference
+    - `cookie_consent_timestamp` (timestamptz) - records when cookie consent was given/updated
 
   2. Changes
     - Add new columns to users table with appropriate defaults
@@ -40,7 +42,9 @@ BEGIN
     onboarding_complete,
     subscription_status,
     exchanges_this_month,
-    last_exchange_reset_date
+    last_exchange_reset_date,
+    cookie_preferences, -- New column
+    cookie_consent_timestamp -- New column
   )
   VALUES (
     NEW.id,
@@ -50,7 +54,9 @@ BEGIN
     false,
     'free', -- Default to free tier
     0, -- Start with 0 monthly exchanges
-    now() -- Set initial reset date
+    now(), -- Set initial reset date
+    'not_set', -- Default cookie preference
+    now() -- Set initial cookie consent timestamp
   );
   
   RETURN NEW;

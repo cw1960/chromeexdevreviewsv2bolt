@@ -31,19 +31,18 @@ import {
   TrendingUp, 
   CheckCircle, 
   XCircle, 
-  Edit, 
   Eye,
   AlertTriangle,
   Clock,
   Shield,
   CreditCard,
   Mail,
-  Settings
+  Settings,
+  Edit
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database'
-import { sendTransactionalEmail, createApprovalEmail, createRejectionEmail } from '../utils/sendTransactionalEmail'
 
 type Extension = Database['public']['Tables']['extensions']['Row']
 type User = Database['public']['Tables']['users']['Row']
@@ -71,10 +70,7 @@ export function AdminDashboardPage() {
   
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<string | null>('overview')
-  
-  // DEBUGGING: Log state initialization
-  console.log('🔄 Initial loading state:', loading)
-  console.log('📑 Initial active tab:', activeTab)
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false)
   
   // Data states
   const [stats, setStats] = useState({
@@ -91,94 +87,38 @@ export function AdminDashboardPage() {
   const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([])
   const [transactions, setTransactions] = useState<CreditTransaction[]>([])
   
-  // Modal states
-  const [verificationModalOpen, setVerificationModalOpen] = useState(false)
-  const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null)
-  const [assignmentsLoading, setAssignmentsLoading] = useState(false)
-
-  // DEBUGGING: Log data states initialization
-  console.log('📊 Initial stats state:', stats)
-  console.log('📦 Initial extensions length:', extensions.length)
-  console.log('👥 Initial users length:', users.length)
-  console.log('📝 Initial assignments length:', assignments.length)
-  console.log('💳 Initial transactions length:', transactions.length)
-
-  const verificationForm = useForm({
-    initialValues: {
-      status: 'verified' as 'verified' | 'rejected',
-      rejection_reason: ''
-    }
-  })
-
   useEffect(() => {
-    console.log('🔍 useEffect triggered - checking admin role')
-    console.log('👤 Profile in useEffect:', profile)
-    console.log('🔐 Profile role in useEffect:', profile?.role)
-    
     if (profile?.role === 'admin') {
-      console.log('✅ User is admin, calling fetchAdminData')
       fetchAdminData()
-    } else {
-      console.log('❌ User is not admin or profile not loaded yet')
-      console.log('🔐 Current role:', profile?.role)
     }
   }, [profile?.role])
 
   const fetchAdminData = async () => {
-    console.log('📡 fetchAdminData function called')
-    
     try {
       setLoading(true)
-      console.log('🔄 Set loading to true')
-      console.log('Fetching admin data via Edge Function...')
       
       const { data, error } = await supabase.functions.invoke('fetch-admin-dashboard-data')
 
-      console.log('📨 Edge function response received')
-      console.log('📊 Response data:', data)
-      console.log('❌ Response error:', error)
-
       if (error) {
         console.error('Edge function error:', error)
-        console.error('❌ CRITICAL: Edge function failed with error:', error)
         throw error
       }
 
       if (!data?.success) {
-        console.error('❌ CRITICAL: Edge function returned unsuccessful response:', data)
         throw new Error(data?.error || 'Failed to fetch admin data')
       }
 
       const { users: usersData, extensions: extensionsData, assignments: assignmentsData, transactions: transactionsData, stats: statsData } = data.data
 
-      console.log('📊 Extracted data from response:')
-      console.log('👥 Users data:', usersData)
-      console.log('📦 Extensions data:', extensionsData)
-      console.log('📝 Assignments data:', assignmentsData)
-      console.log('💳 Transactions data:', transactionsData)
-      console.log('📈 Stats data:', statsData)
-
       // Set the data from Edge Function response
-      console.log('🔄 Setting state with fetched data...')
       setUsers(usersData)
-      console.log('✅ Users state set')
       setExtensions(extensionsData as ExtensionWithOwner[])
-      console.log('✅ Extensions state set')
       setAssignments(assignmentsData as AssignmentWithDetails[])
-      console.log('✅ Assignments state set')
       setTransactions(transactionsData)
-      console.log('✅ Transactions state set')
       setStats(statsData)
-      console.log('✅ Stats state set')
-
-      console.log('Admin data fetch completed successfully')
-      console.log('🎉 All data successfully loaded and state updated')
 
     } catch (error) {
       console.error('Error fetching admin data:', error)
-      console.error('💥 CRITICAL ERROR in fetchAdminData:', error)
-      console.error('💥 Error stack:', error.stack)
-      console.error('💥 Error message:', error.message)
       notifications.show({
         title: 'Error',
         message: 'Failed to load admin data. Please try again.',
@@ -186,56 +126,7 @@ export function AdminDashboardPage() {
       })
     } finally {
       setLoading(false)
-      console.log('🔄 Set loading to false - fetch process completed')
     }
-  }
-
-  const handleVerifyExtension = async (values: typeof verificationForm.values) => {
-    if (!selectedExtension) return
-
-    try {
-      console.log('Processing extension verification via Edge Function...')
-      
-      const { data, error } = await supabase.functions.invoke('process-extension-verification', {
-        body: {
-          extensionId: selectedExtension.id,
-          status: values.status,
-          rejection_reason: values.status === 'rejected' ? values.rejection_reason : null
-        }
-      })
-
-      if (error) throw error
-
-      if (!data?.success) {
-        throw new Error(data?.error || 'Failed to process extension verification')
-      }
-
-      notifications.show({
-        title: 'Success',
-        message: data.message || `Extension ${values.status === 'verified' ? 'approved' : 'rejected'} successfully`,
-        color: values.status === 'verified' ? 'green' : 'orange'
-      })
-
-      setVerificationModalOpen(false)
-      setSelectedExtension(null)
-      verificationForm.reset()
-      fetchAdminData()
-    } catch (error: any) {
-      notifications.show({
-        title: 'Error',
-        message: error.message || 'Failed to update extension',
-        color: 'red'
-      })
-    }
-  }
-
-  const openVerificationModal = (extension: Extension) => {
-    setSelectedExtension(extension)
-    verificationForm.setValues({
-      status: 'verified',
-      rejection_reason: ''
-    })
-    setVerificationModalOpen(true)
   }
 
   const navigateToUserProfile = (userId: string) => {
@@ -303,7 +194,6 @@ export function AdminDashboardPage() {
     switch (status) {
       case 'verified': 
       case 'library': return 'In my Library'
-      case 'pending_verification': return 'In Review Queue'
       case 'queued': return 'In Review Queue'
       case 'assigned': return 'Selected for Review'
       case 'reviewed': return 'Review Submitted'
@@ -432,7 +322,7 @@ export function AdminDashboardPage() {
             <Grid.Col span={{ base: 12, md: 4 }}>
               <Card withBorder>
                 <Group justify="space-between" mb="md">
-                  <Text fw={600}>Extensions in Review Queue</Text>
+                  <Text fw={600}>Extensions in Queue</Text>
                 </Group>
                 <Text size="xl" fw={700} mb="xs" c={stats.pendingVerifications > 0 ? 'orange' : 'green'}>
                   {stats.pendingVerifications}
@@ -494,9 +384,6 @@ export function AdminDashboardPage() {
           <Card withBorder>
             <Group justify="space-between" mb="md">
               <Text fw={600}>Extension Management</Text>
-              <Badge color="orange">
-                {stats.pendingVerifications} In Queue
-              </Badge>
             </Group>
             <Table>
               <Table.Thead>
@@ -576,16 +463,6 @@ export function AdminDashboardPage() {
                         >
                           <Eye size={14} />
                         </ActionIcon>
-                        {extension.status === 'pending_verification' && (
-                          <ActionIcon
-                            variant="light"
-                            color="blue"
-                            size="sm"
-                            onClick={() => openVerificationModal(extension)}
-                          >
-                            <Edit size={14} />
-                          </ActionIcon>
-                        )}
                       </Group>
                     </Table.Td>
                   </Table.Tr>

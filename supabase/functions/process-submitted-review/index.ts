@@ -163,7 +163,7 @@ serve(async (req) => {
       .select(`
         *,
         extension:extensions(id, owner_id, name),
-        reviewer:users(id, name)
+        reviewer:users(id, name, email)
       `)
       .eq('id', assignment_id)
       .eq('status', 'assigned')
@@ -323,22 +323,56 @@ serve(async (req) => {
 
     console.log('🎉 Review processing completed successfully!')
 
+    // 6. TRIGGER EMAIL TO EXTENSION OWNER
+    try {
+      console.log('📧 Triggering MailerLite event for extension owner...')
+      const { data: extensionOwnerData, error: ownerError } = await supabase
+        .from('users')
+        .select('email, name')
+        .eq('id', assignment.extension.owner_id)
+        .single()
+
+      if (!ownerError && extensionOwnerData?.email) {
+        const { error: mailerLiteOwnerError } = await supabase.functions.invoke('mailerlite-integration', {
+          body: {
+            user_email: extensionOwnerData.email,
+            event_type: 'extension_reviewed_owner',
+            custom_data: {
+              extension_name: assignment.extension.name,
+              owner_name: extensionOwnerData.name,
+              reviewer_name: assignment.reviewer.name,
+              rating: rating,
+              review_text_snippet: review_text.substring(0, 100) + (review_text.length > 100 ? '...' : ''),
+              review_completion_date: new Date().toISOString(),
+              chrome_store_proof: chrome_store_proof
+            }
+          }
+        })
+        
+        if (mailerLiteOwnerError) {
+          console.error('❌ MailerLite error for extension owner:', mailerLiteOwnerError)
+        } else {
+          console.log('✅ MailerLite extension reviewed event triggered for owner')
+        }
+      } else {
+        console.log('⚠️ No extension owner email available for MailerLite event')
+      }
+    } catch (mailerLiteOwnerError) {
+      console.error('❌ Failed to trigger MailerLite extension reviewed event for owner:', mailerLiteOwnerError)
+      // Don't fail the review process if MailerLite fails
+    }
+
     // Trigger MailerLite event for review completion
     try {
       console.log('📧 Triggering MailerLite review completion event...')
-      const { data: reviewerData, error: reviewerError } = await supabase
-        .from('users')
-        .select('email, name')
-        .eq('id', assignment.reviewer_id)
-        .single()
-
-      if (!reviewerError && reviewerData?.email) {
+      if (assignment.reviewer?.email) {
         const { error: mailerLiteError } = await supabase.functions.invoke('mailerlite-integration', {
           body: {
-            user_email: reviewerData.email,
+            user_email: assignment.reviewer.email,
             event_type: 'review_completed',
             custom_data: {
               extension_name: assignment.extension.name,
+              reviewer_name: assignment.reviewer.name,
               rating: rating,
               credits_earned: 1,
               completion_date: new Date().toISOString()
@@ -351,19 +385,14 @@ serve(async (req) => {
         } else {
           console.log('✅ MailerLite review completion event triggered')
         }
+      } else {
+        console.log('⚠️ No reviewer email available for MailerLite event')
       }
     } catch (mailerLiteError) {
       console.error('❌ Failed to trigger MailerLite review completion event:', mailerLiteError)
       // Don't fail the review process if MailerLite fails
     }
 
-    // Trigger MailerLite event for review completion
-    try {
-      const { data: reviewerData, error: reviewerError } = await supabase
-        .from('users')
-        .select('email, name')
-        .eq('id', assignment.reviewer_id)
-        .single()
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -376,25 +405,6 @@ serve(async (req) => {
       }
     )
 
-      if (!reviewerError && reviewerData?.email) {
-        await supabase.functions.invoke('mailerlite-integration', {
-          body: {
-            user_email: reviewerData.email,
-            event_type: 'review_completed',
-            custom_data: {
-              extension_name: assignment.extension.name,
-              rating: rating,
-              credits_earned: 1,
-              completion_date: new Date().toISOString()
-            }
-          }
-        })
-        console.log('✅ MailerLite review completion event triggered')
-      }
-    } catch (mailerLiteError) {
-      console.error('Failed to trigger MailerLite review completion event:', mailerLiteError)
-      // Don't fail the review process if MailerLite fails
-    }
   } catch (error) {
     console.error('💥 CRITICAL ERROR in process-submitted-review function:', {
       message: error.message,

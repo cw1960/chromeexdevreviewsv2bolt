@@ -1,4 +1,5 @@
 import React from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Container,
@@ -12,7 +13,10 @@ import {
   Badge,
   Avatar,
   Box,
-  Center
+  Center,
+  Divider,
+  List,
+  ThemeIcon
 } from '@mantine/core'
 import { 
   Play, 
@@ -22,11 +26,73 @@ import {
   Users, 
   CheckCircle,
   ArrowRight,
-  Quote
+  Quote,
+  Lock,
+  RefreshCcw,
+  Code,
+  DollarSign,
+  XCircle,
+  Zap,
+  Crown
 } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import { CookieConsentModal } from '../components/CookieConsentModal'
 
 export function LandingPage() {
   const navigate = useNavigate()
+  const { profile, updateCookiePreferences } = useAuth()
+  const [showCookieModal, setShowCookieModal] = useState(false)
+
+  // Check if we should show cookie consent modal
+  useEffect(() => {
+    // Only show for users who haven't set their cookie preferences
+    // or for non-authenticated users (we'll handle this with localStorage)
+    if (profile && profile.cookie_preferences === 'not_set') {
+      setShowCookieModal(true)
+    } else if (!profile) {
+      // For non-authenticated users, check localStorage
+      const hasSeenCookieConsent = localStorage.getItem('cookie_consent_shown')
+      if (!hasSeenCookieConsent) {
+        setShowCookieModal(true)
+      }
+    }
+  }, [profile])
+
+  const handleCookieAccept = async () => {
+    try {
+      if (profile) {
+        // For authenticated users, update in database
+        await updateCookiePreferences('accepted')
+      } else {
+        // For non-authenticated users, store in localStorage
+        localStorage.setItem('cookie_consent_shown', 'true')
+        localStorage.setItem('cookie_preference', 'accepted')
+      }
+      setShowCookieModal(false)
+    } catch (error) {
+      console.error('Error updating cookie preferences:', error)
+      // Still close the modal even if there's an error
+      setShowCookieModal(false)
+    }
+  }
+
+  const handleCookieDecline = async () => {
+    try {
+      if (profile) {
+        // For authenticated users, update in database
+        await updateCookiePreferences('declined')
+      } else {
+        // For non-authenticated users, store in localStorage
+        localStorage.setItem('cookie_consent_shown', 'true')
+        localStorage.setItem('cookie_preference', 'declined')
+      }
+      setShowCookieModal(false)
+    } catch (error) {
+      console.error('Error updating cookie preferences:', error)
+      // Still close the modal even if there's an error
+      setShowCookieModal(false)
+    }
+  }
 
   const handleGetStarted = () => {
     navigate('/auth')
@@ -97,9 +163,7 @@ export function LandingPage() {
           <Grid align="center">
             <Grid.Col span={{ base: 12, md: 6 }}>
               <Stack gap="xl">
-                <Badge size="lg" variant="light" color="white" c="blue">
-                  Chrome Web Store Compliant
-                </Badge>
+                {/*Removed Badge Component Here*/}
                 <Title 
                   order={1} 
                   size="3rem" 
@@ -108,17 +172,12 @@ export function LandingPage() {
                   c="white"
                   style={{ textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                 >
-                  Get Steady Chrome Extension Reviews + Higher Ratings + More Installs in Days
+                  Break the Zero-Review Trap! Get Steady Chrome Extension Installs, Ratings and Reviews in Days Instead of Months
                 </Title>
                 <Title order={2} size="1.5rem" fw={400} c="rgba(255,255,255,0.9)" lh={1.4}>
-                  Using Our Chrome Web Store Compliant Developer Network
+                  Stop watching your extension collect dust. Get quality reviews from fellow developers who actually understand Chrome extensions.
+
                 </Title>
-                <Text size="lg" c="rgba(255,255,255,0.8)" lh={1.6}>
-                  Finally escape the zero-visibility trap new extensions face. Trade reviews with other Chrome developers through our algorithm that ensures 100% compliance with Google's policies.
-                </Text>
-                <Text size="md" c="rgba(255,255,255,0.7)" lh={1.5}>
-                  ChromeExDev.Reviews solves the biggest problem Chrome extension developers face: getting those crucial first reviews and installs without violating Google's policies or spending months on manual outreach.
-                </Text>
                 <Button 
                   size="xl" 
                   radius="md" 
@@ -139,7 +198,7 @@ export function LandingPage() {
                     }
                   }}
                 >
-                  Start Your Free Trial
+                  Start Getting Reviews Today - FREE
                 </Button>
               </Stack>
             </Grid.Col>
@@ -170,32 +229,12 @@ export function LandingPage() {
                       Watch 3-Minute Demo
                     </Text>
                     <Text c="rgba(255,255,255,0.8)" size="sm" ta="center">
-                      See how developers are getting 50+ reviews in their first month
+                      See how developers are getting 20+ reviews in their first month
                     </Text>
                   </Stack>
                 </Center>
               </Card>
             </Grid.Col>
-          </Grid>
-        </Container>
-      </Box>
-
-      {/* Stats Section */}
-      <Box py={60} bg="gray.0">
-        <Container size="lg">
-          <Grid>
-            {stats.map((stat, index) => (
-              <Grid.Col key={index} span={{ base: 6, md: 3 }}>
-                <Stack align="center" gap="xs">
-                  <Text size="2.5rem" fw={800} c="blue.6">
-                    {stat.number}
-                  </Text>
-                  <Text size="sm" c="dimmed" ta="center">
-                    {stat.label}
-                  </Text>
-                </Stack>
-              </Grid.Col>
-            ))}
           </Grid>
         </Container>
       </Box>
@@ -249,7 +288,7 @@ export function LandingPage() {
                     Reviews in First Month
                   </Text>
                   <Text size="3rem" fw={800} c="green.6">
-                    47
+                    20+
                   </Text>
                   <Text size="sm" c="dimmed" ta="center">
                     Average for new extensions
@@ -382,7 +421,7 @@ export function LandingPage() {
                     }
                   }}
                 >
-                  Start Your Free Trial
+                  Start Getting Reviews Today - FREE
                 </Button>
               </Stack>
             </Grid.Col>
@@ -406,13 +445,405 @@ export function LandingPage() {
         </Stack>
       </Container>
 
+      {/* How ChromeExDev.Reviews Works Section */}
+      <Container size="lg" py={80}>
+        <Stack gap={80}>
+          {/* Section Header */}
+          <Stack align="center" gap="md">
+            <Title order={1} size="2.5rem" fw={700} ta="center" c="dark.8">
+              How ChromeExDev.Reviews Works
+            </Title>
+            <Text size="lg" c="dimmed" ta="center" maw={600} style={{ fontStyle: 'italic' }}>
+              Simple, compliant, and effective - get quality reviews from developers who actually understand extensions
+            </Text>
+          </Stack>
+
+          <Divider size="md" />
+
+          {/* The Process - 3 Steps */}
+          <div>
+            <Title order={2} size="2rem" fw={700} ta="center" mb="xl" c="dark.8">
+              The Process
+            </Title>
+            <Grid>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <Card shadow="lg" radius="lg" p="xl" h="100%">
+                  <Stack align="center" gap="lg">
+                    <ThemeIcon size={60} radius="xl" color="blue">
+                      <Lock size={30} />
+                    </ThemeIcon>
+                    <Title order={3} size="1.25rem" ta="center">
+                      Step 1: Join the Developer Network
+                    </Title>
+                    <Text ta="center" c="dimmed" lh={1.6}>
+                      <strong>Sign up free</strong> and add your Chrome extension to our developer network. Connect with a community of extension developers who understand the challenges you face.
+                    </Text>
+                  </Stack>
+                </Card>
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <Card shadow="lg" radius="lg" p="xl" h="100%">
+                  <Stack align="center" gap="lg">
+                    <ThemeIcon size={60} radius="xl" color="green">
+                      <RefreshCcw size={30} />
+                    </ThemeIcon>
+                    <Title order={3} size="1.25rem" ta="center">
+                      Step 2: Trade Quality Reviews
+                    </Title>
+                    <Text ta="center" c="dimmed" lh={1.6}>
+                      <strong>Review to earn credits.</strong> Write thoughtful reviews for other developers' extensions to earn credits. Each quality review earns you a credit to get your own extension reviewed.
+                    </Text>
+                  </Stack>
+                </Card>
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <Card shadow="lg" radius="lg" p="xl" h="100%">
+                  <Stack align="center" gap="lg">
+                    <ThemeIcon size={60} radius="xl" color="orange">
+                      <Star size={30} />
+                    </ThemeIcon>
+                    <Title order={3} size="1.25rem" ta="center">
+                      Step 3: Get Authentic Reviews
+                    </Title>
+                    <Text ta="center" c="dimmed" lh={1.6}>
+                      <strong>Watch your reviews grow.</strong> Our algorithm matches your extension with qualified reviewers who actually install, test, and provide detailed feedback.
+                    </Text>
+                  </Stack>
+                </Card>
+              </Grid.Col>
+            </Grid>
+          </div>
+
+          <Divider size="md" />
+
+          {/* Why It's Different */}
+          <div>
+            <Title order={2} size="2rem" fw={700} ta="center" mb="xl" c="dark.8">
+              Why It's Different
+            </Title>
+            <Grid>
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <Card withBorder p="xl" h="100%">
+                  <Group gap="md" align="flex-start">
+                    <ThemeIcon color="blue" size={40} radius="xl">
+                      <Shield size={20} />
+                    </ThemeIcon>
+                    <Stack gap="sm" flex={1}>
+                      <Title order={4} size="1.1rem">100% Chrome Web Store Compliant</Title>
+                      <Text size="sm" c="dimmed" lh={1.5}>
+                        <strong>No direct 1-for-1 exchanges.</strong> Our smart algorithm prevents the direct trading patterns that Google prohibits. You review extensions, earn credits, then use credits to get reviewed - creating a compliant community ecosystem.
+                      </Text>
+                    </Stack>
+                  </Group>
+                </Card>
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <Card withBorder p="xl" h="100%">
+                  <Group gap="md" align="flex-start">
+                    <ThemeIcon color="green" size={40} radius="xl">
+                      <Code size={20} />
+                    </ThemeIcon>
+                    <Stack gap="sm" flex={1}>
+                      <Title order={4} size="1.1rem">Reviews from Real Developers</Title>
+                      <Text size="sm" c="dimmed" lh={1.5}>
+                        <strong>Quality over quantity.</strong> Every reviewer is a Chrome extension developer who understands the ecosystem. No random users, no fake accounts - just developers helping developers.
+                      </Text>
+                    </Stack>
+                  </Group>
+                </Card>
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <Card withBorder p="xl" h="100%">
+                  <Group gap="md" align="flex-start">
+                    <ThemeIcon color="purple" size={40} radius="xl">
+                      <TrendingUp size={20} />
+                    </ThemeIcon>
+                    <Stack gap="sm" flex={1}>
+                      <Title order={4} size="1.1rem">Algorithm-Friendly Growth</Title>
+                      <Text size="sm" c="dimmed" lh={1.5}>
+                        <strong>Consistent review activity signals quality to Google's ranking algorithm.</strong> Regular, authentic reviews help your extension climb search results and attract organic users.
+                      </Text>
+                    </Stack>
+                  </Group>
+                </Card>
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <Card withBorder p="xl" h="100%">
+                  <Group gap="md" align="flex-start">
+                    <ThemeIcon color="orange" size={40} radius="xl">
+                      <DollarSign size={20} />
+                    </ThemeIcon>
+                    <Stack gap="sm" flex={1}>
+                      <Title order={4} size="1.1rem">Free to Test</Title>
+                      <Text size="sm" c="dimmed" lh={1.5}>
+                        <strong>Start immediately with no risk.</strong> Test the platform, see the quality of reviews, and experience the growth before deciding if you want to upgrade.
+                      </Text>
+                    </Stack>
+                  </Group>
+                </Card>
+              </Grid.Col>
+            </Grid>
+          </div>
+
+          <Divider size="md" />
+
+          {/* Choose Your Growth Speed */}
+          <div>
+            <Title order={2} size="2rem" fw={700} ta="center" mb="xl" c="dark.8">
+              Choose Your Growth Speed
+            </Title>
+            <Grid>
+              {/* Free Tier */}
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <Card shadow="lg" radius="lg" p="xl" h="100%" withBorder>
+                  <Stack gap="lg">
+                    <Stack align="center" gap="md">
+                      <Badge size="lg" color="blue" variant="light">
+                        Free Tier - Perfect for Testing
+                      </Badge>
+                      <Group align="baseline" gap="xs">
+                        <Text size="2.5rem" fw={800} c="blue.6">
+                          $0
+                        </Text>
+                        <Text size="lg" c="dimmed">
+                          /month
+                        </Text>
+                      </Group>
+                      <Text fw={600} ta="center" c="blue">
+                        Start Today
+                      </Text>
+                    </Stack>
+
+                    <div>
+                      <Text fw={600} mb="sm">What's Included:</Text>
+                      <List
+                        spacing="xs"
+                        size="sm"
+                        icon={
+                          <ThemeIcon color="green" size={16} radius="xl">
+                            <CheckCircle size={10} />
+                          </ThemeIcon>
+                        }
+                      >
+                        <List.Item><strong>1 extension</strong> in the network</List.Item>
+                        <List.Item><strong>4 reviews per month</strong> (28-day cycle)</List.Item>
+                        <List.Item><strong>Standard queue</strong> processing (2-3 day average)</List.Item>
+                        <List.Item><strong>Credit-based system</strong> (review others to earn credits)</List.Item>
+                        <List.Item><strong>Full platform access</strong> to test quality</List.Item>
+                      </List>
+                    </div>
+
+                    <div>
+                      <Text fw={600} mb="sm">Perfect For:</Text>
+                      <List spacing="xs" size="sm">
+                        <List.Item>Developers testing the platform</List.Item>
+                        <List.Item>Single-extension developers</List.Item>
+                        <List.Item>Occasional review needs</List.Item>
+                      </List>
+                    </div>
+
+                    <Button 
+                      size="lg" 
+                      variant="light" 
+                      fullWidth
+                      onClick={handleGetStarted}
+                    >
+                      Start Free - No Credit Card Required
+                    </Button>
+                  </Stack>
+                </Card>
+              </Grid.Col>
+
+              {/* Review Fast Track */}
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <Card 
+                  shadow="xl" 
+                  radius="lg" 
+                  p="xl" 
+                  h="100%"
+                  style={{ 
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    position: 'relative'
+                  }}
+                >
+                  <Badge 
+                    size="lg" 
+                    variant="white" 
+                    color="dark"
+                    style={{ 
+                      position: 'absolute',
+                      top: -10,
+                      left: '50%',
+                      transform: 'translateX(-50%)'
+                    }}
+                  >
+                    Most Popular
+                  </Badge>
+                  
+                  <Stack gap="lg">
+                    <Stack align="center" gap="md">
+                      <Badge size="lg" color="yellow" variant="light">
+                        Review Fast Track - For Serious Growth
+                      </Badge>
+                      <Group align="baseline" gap="xs">
+                        <Text size="2.5rem" fw={800} c="white">
+                          $19.99
+                        </Text>
+                        <Text size="lg" c="rgba(255,255,255,0.8)">
+                          /month
+                        </Text>
+                      </Group>
+                      <Text size="sm" c="rgba(255,255,255,0.8)" ta="center">
+                        or $149.99/year - save $90
+                      </Text>
+                    </Stack>
+
+                    <div>
+                      <Text fw={600} mb="sm" c="white">Everything in Free, Plus:</Text>
+                      <List
+                        spacing="xs"
+                        size="sm"
+                        icon={
+                          <ThemeIcon color="yellow" size={16} radius="xl">
+                            <Zap size={10} />
+                          </ThemeIcon>
+                        }
+                      >
+                        <List.Item><strong>Unlimited extensions</strong> in your portfolio</List.Item>
+                        <List.Item><strong>Unlimited reviews per month</strong></List.Item>
+                        <List.Item><strong>Priority queue processing</strong> (under 24 hours)</List.Item>
+                        <List.Item><strong>Skip the credit system</strong> (no need to review first)</List.Item>
+                        <List.Item><strong>Premium support</strong> (direct email access)</List.Item>
+                      </List>
+                    </div>
+
+                    <Card withBorder p="md" bg="rgba(255,255,255,0.1)">
+                      <Text fw={600} mb="xs" c="white">The Fast Track Advantage:</Text>
+                      <Text size="sm" c="rgba(255,255,255,0.9)" lh={1.4}>
+                        While free users wait 2-3 days in the standard queue, Review Fast Track members skip to the front and usually get reviewed in under 24 hours.
+                      </Text>
+                    </Card>
+
+                    <Button 
+                      size="lg" 
+                      variant="white"
+                      color="dark"
+                      fullWidth
+                      onClick={() => navigate('/upgrade')}
+                      leftSection={<Crown size={20} />}
+                    >
+                      Join Review Fast Track
+                    </Button>
+                  </Stack>
+                </Card>
+              </Grid.Col>
+            </Grid>
+          </div>
+
+          <Divider size="md" />
+
+          {/* Risk-Free Guarantee */}
+          <Card withBorder p="xl" bg="green.0">
+            <Stack gap="lg">
+              <Title order={2} size="1.5rem" fw={700} ta="center" c="dark.8">
+                Risk-Free Guarantee
+              </Title>
+              <Grid>
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Group gap="md" align="flex-start">
+                    <ThemeIcon color="green" size={40} radius="xl">
+                      <CheckCircle size={20} />
+                    </ThemeIcon>
+                    <Stack gap="xs" flex={1}>
+                      <Text fw={600}>30-Day Money-Back Promise</Text>
+                      <Text size="sm" c="dimmed">
+                        Try Review Fast Track risk-free. If you're not satisfied with the speed and quality, we'll refund your first month - no questions asked.
+                      </Text>
+                    </Stack>
+                  </Group>
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Group gap="md" align="flex-start">
+                    <ThemeIcon color="blue" size={40} radius="xl">
+                      <XCircle size={20} />
+                    </ThemeIcon>
+                    <Stack gap="xs" flex={1}>
+                      <Text fw={600}>Cancel Anytime</Text>
+                      <Text size="sm" c="dimmed">
+                        No contracts, no commitments. Upgrade or downgrade anytime. Your free tier access remains forever.
+                      </Text>
+                    </Stack>
+                  </Group>
+                </Grid.Col>
+              </Grid>
+            </Stack>
+          </Card>
+
+          {/* Getting Started */}
+          <div>
+            <Title order={2} size="2rem" fw={700} ta="center" mb="xl" c="dark.8">
+              Getting Started
+            </Title>
+            <Card withBorder p="xl">
+              <Stack gap="lg">
+                <div>
+                  <Text fw={600} mb="md">Immediate Next Steps:</Text>
+                  <List
+                    spacing="sm"
+                    size="md"
+                    icon={
+                      <ThemeIcon color="blue" size={20} radius="xl">
+                        <CheckCircle size={12} />
+                      </ThemeIcon>
+                    }
+                  >
+                    <List.Item><strong>Sign up free</strong> - No credit card required</List.Item>
+                    <List.Item><strong>Add your first extension</strong> to the network</List.Item>
+                    <List.Item><strong>Write 1-2 quality reviews</strong> to earn your first credits</List.Item>
+                    <List.Item><strong>Submit for review</strong> and watch the quality feedback roll in</List.Item>
+                    <List.Item><strong>Upgrade to Fast Track</strong> when you're ready for unlimited speed</List.Item>
+                  </List>
+                </div>
+
+                <div>
+                  <Text fw={600} mb="md" ta="center" size="lg">
+                    Ready to Break the Zero-Review Trap?
+                  </Text>
+                  <Group justify="center" gap="md">
+                    <Button 
+                      size="lg"
+                      onClick={handleGetStarted}
+                    >
+                      Start Free Today
+                    </Button>
+                    <Button 
+                      size="lg" 
+                      variant="gradient"
+                      gradient={{ from: 'yellow', to: 'orange' }}
+                      leftSection={<Crown size={18} />}
+                      onClick={() => navigate('/upgrade')}
+                    >
+                      Skip the Wait - Join Fast Track
+                    </Button>
+                  </Group>
+                  <Text size="sm" c="dimmed" ta="center" mt="md" style={{ fontStyle: 'italic' }}>
+                    Join a fast growing community of extension developers who refuse to let great extensions stay invisible
+                  </Text>
+                </div>
+              </Stack>
+            </Card>
+          </div>
+        </Stack>
+      </Container>
+
       {/* Testimonials Section */}
-      <Box py={80} bg="gray.0">
+      <Box py={80} bg="gray.0" className="hidden">
         <Container size="lg">
           <Stack gap="xl" align="center">
             <Stack gap="md" align="center">
               <Title order={2} size="2.5rem" fw={700} ta="center">
-                Real Results from Real Developers
+                Real Results from Real Beta Developers
               </Title>
               <Text size="lg" c="dimmed" ta="center" maw={600}>
                 See how Chrome extension developers are breaking through the visibility barrier and growing their user base
@@ -455,22 +886,6 @@ export function LandingPage() {
         </Container>
       </Box>
 
-      {/* Trust Badges Section */}
-      <Container size="lg" py={60}>
-        <Grid>
-          {trustBadges.map((badge, index) => (
-            <Grid.Col key={index} span={{ base: 6, md: 3 }}>
-              <Stack align="center" gap="sm">
-                <badge.icon size={32} color="#2196f3" />
-                <Text size="sm" fw={600} ta="center">
-                  {badge.text}
-                </Text>
-              </Stack>
-            </Grid.Col>
-          ))}
-        </Grid>
-      </Container>
-
       {/* Final CTA Section */}
       <Box py={80} bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
         <Container size="md">
@@ -480,7 +895,7 @@ export function LandingPage() {
                 Ready to Break Through the Visibility Barrier?
               </Title>
               <Text size="lg" c="rgba(255,255,255,0.9)" ta="center" maw={500}>
-                Join 2,500+ Chrome extension developers who are getting steady reviews and growing their user base every week.
+                Join a fast growing community of Chrome extension developers who are getting steady reviews and growing their user base every week.
               </Text>
             </Stack>
             <Button 
@@ -503,16 +918,56 @@ export function LandingPage() {
                 }
               }}
             >
-              Start Your Free Trial - No Credit Card Required
+              Start Getting Reviews Today - FREE
             </Button>
             <Group gap="xl" c="rgba(255,255,255,0.8)">
               <Text size="sm">✓ 30-Day Money-Back Guarantee</Text>
-              <Text size="sm">✓ Setup in Under 5 Minutes</Text>
+              <Text size="sm">✓ Setup in Under 3 Minutes</Text>
               <Text size="sm">✓ 100% Policy Compliant</Text>
             </Group>
           </Stack>
         </Container>
       </Box>
+
+      {/* Footer */}
+      <Box py={40} bg="gray.9">
+        <Container size="lg">
+          <Stack align="center" gap="md">
+            <Group gap="xl" justify="center">
+              <Text 
+                component="a" 
+                href="/terms" 
+                size="sm" 
+                c="gray.4"
+                style={{ textDecoration: 'none' }}
+                className="hover:text-white transition-colors"
+              >
+                Terms and Conditions
+              </Text>
+              <Text 
+                component="a" 
+                href="/privacy" 
+                size="sm" 
+                c="gray.4"
+                style={{ textDecoration: 'none' }}
+                className="hover:text-white transition-colors"
+              >
+                Privacy Policy
+              </Text>
+            </Group>
+            <Text size="sm" c="gray.5" ta="center">
+              © 2025 El Barrial Devs | ChromeExDev.Reviews. All rights reserved.
+            </Text>
+          </Stack>
+        </Container>
+      </Box>
+
+      {/* Cookie Consent Modal */}
+      <CookieConsentModal
+        opened={showCookieModal}
+        onAccept={handleCookieAccept}
+        onDecline={handleCookieDecline}
+      />
     </Box>
   )
 }

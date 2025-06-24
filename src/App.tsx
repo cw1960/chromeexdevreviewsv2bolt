@@ -18,6 +18,8 @@ import { OnboardingPage } from './pages/OnboardingPage'
 import { QualificationPage } from './pages/QualificationPage'
 import { UpgradePage } from './pages/UpgradePage'
 import { SuccessPage } from './pages/SuccessPage'
+import { TermsPage } from './pages/TermsPage'
+import { PrivacyPage } from './pages/PrivacyPage'
 
 // Import Mantine styles
 import '@mantine/core/styles.css'
@@ -142,6 +144,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
       <Route 
         path="/auth" 
         element={

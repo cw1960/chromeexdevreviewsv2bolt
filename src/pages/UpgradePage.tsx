@@ -75,8 +75,8 @@ export function UpgradePage() {
     },
     {
       icon: Star,
-      title: 'Priority Review Queue',
-      description: 'Get your extensions reviewed faster with priority placement'
+      title: '3x Faster Reviews',
+      description: 'Get your extensions reviewed 3x faster with priority placement in the review queue'
     },
     {
       icon: Users,
@@ -85,7 +85,7 @@ export function UpgradePage() {
     },
     {
       icon: Shield,
-      title: 'Premium Support',
+      title: 'Priority Support',
       description: 'Get priority customer support and direct access to our team'
     },
     {
@@ -109,7 +109,7 @@ export function UpgradePage() {
     {
       feature: 'Review Queue Priority',
       free: 'Standard',
-      premium: 'Priority (3:1 ratio)'
+      premium: '3x Faster'
     },
     {
       feature: 'Analytics Dashboard',
@@ -147,10 +147,10 @@ export function UpgradePage() {
           
           <Stack align="center" gap="md">
             <Title order={1} ta="center">
-              You're Already Premium! 🎉
+              You're on Review Fast Track! 🎉
             </Title>
             <Text size="lg" ta="center" c="dimmed">
-              You have access to all premium features and unlimited submissions. Current plan: {planName}
+              You have access to 3x faster reviews and unlimited submissions. Current plan: {planName}
             </Text>
           </Stack>
 
@@ -189,11 +189,11 @@ export function UpgradePage() {
           </ThemeIcon>
           
           <Title order={1} ta="center" size="2.5rem">
-            Upgrade to Premium
+            Join Review Fast Track
           </Title>
           
           <Text size="lg" ta="center" c="dimmed" maw={600}>
-            Unlock unlimited extensions, priority reviews, and advanced features to grow your Chrome extension business faster.
+            Get 3x faster reviews with unlimited extensions and unlimited monthly reviews to grow your Chrome extension business faster.
           </Text>
         </Stack>
 
@@ -395,13 +395,13 @@ export function UpgradePage() {
         <Card withBorder p="xl" bg="gray.0">
           <Stack gap="md">
             <Title order={3} ta="center">
-              Why Upgrade to Premium?
+              Why Join Review Fast Track?
             </Title>
             
             <Text ta="center" c="dimmed">
-              Premium users get their extensions reviewed 3x faster, can submit unlimited extensions, 
+              Review Fast Track members get their extensions reviewed 3x faster, can submit unlimited extensions, 
               and have access to advanced analytics to track their success. Join hundreds of successful 
-              Chrome extension developers who have upgraded to premium.
+              Chrome extension developers who have joined Review Fast Track.
             </Text>
             
             <Group justify="center" gap="xl" mt="md">
@@ -415,7 +415,7 @@ export function UpgradePage() {
               </Stack>
               <Stack align="center" gap={4}>
                 <Text size="xl" fw={700} c="blue">24/7</Text>
-                <Text size="sm" c="dimmed">Support</Text>
+                <Text size="sm" c="dimmed">Priority Support</Text>
               </Stack>
             </Group>
           </Stack>

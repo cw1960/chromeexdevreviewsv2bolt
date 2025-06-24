@@ -105,7 +105,7 @@ export function SideNav() {
         </Group>
         <Group justify="space-between" mb="xs">
           <Text size="sm" c="dimmed">Plan</Text>
-          <Text size="sm" fw={600}>{planName}</Text>
+          <Text size="sm" fw={600}>{planName === 'Review Fast Track (Monthly)' || planName === 'Review Fast Track (Yearly)' ? 'Review Fast Track' : planName}</Text>
         </Group>
         <Button
           variant="light"

@@ -66,7 +66,7 @@ export function useSubscription() {
   const isActive = subscription?.subscription_status === 'active'
   const isPremium = isActive && subscription?.price_id
   const product = subscription?.price_id ? getProductByPriceId(subscription.price_id) : null
-  const planName = product?.name || (isPremium ? 'Premium' : 'Free')
+  const planName = product?.name || (isPremium ? 'Review Fast Track' : 'Free')
 
   return {
     subscription,

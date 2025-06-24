@@ -12,11 +12,13 @@ import {
   Container,
   Alert,
   Loader,
-  Avatar
+  Avatar,
+  ThemeIcon
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { Package, Star, Clock, TrendingUp, Plus, AlertCircle } from 'lucide-react'
+import { Package, Star, Clock, TrendingUp, Plus, AlertCircle, Crown } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { WelcomeModal } from '../components/WelcomeModal'
 import { useSubscription } from '../hooks/useSubscription'
@@ -38,6 +40,7 @@ type ReviewAssignment = Database['public']['Tables']['review_assignments']['Row'
 export function DashboardPage() {
   const { profile, refreshProfile, updateProfile } = useAuth()
   const { isPremium, planName } = useSubscription()
+  const navigate = useNavigate()
   const [extensions, setExtensions] = useState<Extension[]>([])
   const [assignments, setAssignments] = useState<ReviewAssignment[]>([])
   const [loading, setLoading] = useState(true)
@@ -205,7 +208,6 @@ export function DashboardPage() {
   const getStatusLabel = (status: Extension['status']) => {
     switch (status) {
       case 'verified': return 'In my Library'
-      case 'pending_verification': 
       case 'queued': return 'In Review Queue'
       case 'assigned': return 'Selected for Review'
       case 'reviewed': return 'Review Submitted'
@@ -284,9 +286,8 @@ export function DashboardPage() {
       const { error: extensionError } = await supabase
         .from('extensions')
         .update({ 
-          status: 'pending_verification',
+          status: 'queued',
           submitted_to_queue_at: new Date().toISOString(),
-          admin_verified: true
         })
         .eq('id', extension.id)
 
@@ -339,21 +340,31 @@ export function DashboardPage() {
   return (
     <Container size="lg">
       <Group justify="space-between" mb="xl">
-        <div>
+        <Stack gap="xs">
           <Title order={1}>Welcome back, {profile?.name}!</Title>
           <Text c="dimmed" size="lg">
             Here's what's happening with your extensions and reviews
           </Text>
-        </div>
+        </Stack>
         <Group>
           {profile?.has_completed_qualification && (
             <Button
               leftSection={requestingAssignment ? <Loader size={16} /> : <Plus size={16} />}
               onClick={handleRequestAssignment}
               loading={requestingAssignment}
-              disabled={assignments.length >= 2}
+              disabled={assignments.length >= 1}
             >
               Request Review Assignment
+            </Button>
+          )}
+          {!isPremium && (
+            <Button
+              variant="gradient"
+              gradient={{ from: 'yellow', to: 'orange' }}
+              leftSection={<Crown size={16} />}
+              onClick={() => navigate('/upgrade')}
+            >
+              Join Review Fast Track
             </Button>
           )}
           <Badge 
@@ -392,22 +403,22 @@ export function DashboardPage() {
       {assignments.length >= 2 && (
         <Alert
           icon={<AlertCircle size={16} />}
-          title="Maximum Active Assignments"
+          title="Active Assignment Limit"
           color="orange"
           mb="xl"
         >
-          You have reached the maximum number of active assignments (2). Complete your current reviews before requesting more.
+          You have an active assignment. Complete your current review before requesting another.
         </Alert>
       )}
 
       <Grid>
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card withBorder>
+          <Card withBorder p="xl" h="100%">
             <Group justify="space-between" mb="md">
               <Text fw={600}>Extensions</Text>
               <Package size={20} />
             </Group>
-            <Text size="xl" fw={700} mb="xs">
+            <Text size="2.5rem" fw={800} mb="xs" c="blue.6">
               {extensions.length}
             </Text>
             <Text size="sm" c="dimmed">
@@ -417,12 +428,12 @@ export function DashboardPage() {
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card withBorder>
+          <Card withBorder p="xl" h="100%">
             <Group justify="space-between" mb="md">
               <Text fw={600}>Pending Reviews</Text>
               <Star size={20} />
             </Group>
-            <Text size="xl" fw={700} mb="xs">
+            <Text size="2.5rem" fw={800} mb="xs" c="purple.6">
               {assignments.length}
             </Text>
             <Text size="sm" c="dimmed">
@@ -432,12 +443,12 @@ export function DashboardPage() {
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card withBorder>
+          <Card withBorder p="xl" h="100%">
             <Group justify="space-between" mb="md">
               <Text fw={600}>Credits Balance</Text>
               <TrendingUp size={20} />
             </Group>
-            <Text size="xl" fw={700} mb="xs">
+            <Text size="2.5rem" fw={800} mb="xs" c="green.6">
               {profile?.credit_balance || 0}
             </Text>
             <Text size="sm" c="dimmed">
@@ -447,86 +458,102 @@ export function DashboardPage() {
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Card withBorder>
+          <Card withBorder p="xl" h="100%">
             <Group justify="space-between" mb="md">
               <Text fw={600}>Recent Extensions</Text>
-              <Button variant="light" size="xs" component="a" href="/extensions">
+              <Button variant="light" size="sm" component="a" href="/extensions">
                 View All
               </Button>
             </Group>
-            <Stack gap="sm">
+            <Stack gap="md">
               {extensions.length === 0 ? (
-                <Text c="dimmed" size="sm" component="div">
-                  No extensions yet. Add your first extension to get started!
-                </Text>
+                <Stack align="center" gap="md" py="xl">
+                  <ThemeIcon size={60} radius="xl" variant="light" color="blue">
+                    <Package size={30} />
+                  </ThemeIcon>
+                  <Stack align="center" gap="xs">
+                    <Text fw={600} size="lg">No extensions yet</Text>
+                    <Text c="dimmed" size="sm" ta="center">
+                      Add your first Chrome extension to get started with authentic reviews!
+                    </Text>
+                  </Stack>
+                  <Button 
+                    component="a" 
+                    href="/extensions" 
+                    leftSection={<Plus size={16} />}
+                    variant="light"
+                  >
+                    Add Extension
+                  </Button>
+                </Stack>
               ) : (
                 extensions.map((extension) => (
-                  <Group key={extension.id} justify="space-between" wrap="wrap">
+                  <Card key={extension.id} withBorder p="md" radius="md">
                     <Group>
                       <Avatar size="sm" src={extension.logo_url} />
                       <Stack gap="xs">
-                      <Text fw={500}>{extension.name}</Text>
-                      <Text size="sm" c="dimmed" maw={300} truncate>
-                        {extension.description || 'No description'}
-                      </Text>
-                      {extension.status === 'pending_verification' && extension.submitted_to_queue_at && (
-                        <Text size="xs" c="blue">
-                          In queue since {new Date(extension.submitted_to_queue_at).toLocaleDateString()}
+                        <Text fw={500}>{extension.name}</Text>
+                        <Text size="sm" c="dimmed" maw={300} truncate>
+                          {extension.description || 'No description'}
                         </Text>
-                      )}
-                      {extension.status === 'assigned' && (
-                        <Text size="xs" c="purple">
-                          Currently being reviewed
-                        </Text>
-                      )}
+                        {extension.status === 'pending_verification' && extension.submitted_to_queue_at && (
+                          <Text size="xs" c="blue">
+                            In queue since {new Date(extension.submitted_to_queue_at).toLocaleDateString()}
+                          </Text>
+                        )}
+                        {extension.status === 'assigned' && (
+                          <Text size="xs" c="purple">
+                            Currently being reviewed
+                          </Text>
+                        )}
+                        <Group justify="space-between" align="center">
+                          <Badge color={getStatusColor(extension.status)} size="sm">
+                            {getStatusLabel(extension.status)}
+                          </Badge>
+                          <Group gap="xs">
+                            {(extension.status === 'verified' || extension.status === 'library') && profile?.credit_balance > 0 && (
+                              profile?.subscription_status !== 'free' || (profile?.exchanges_this_month || 0) < 4 && (
+                              <Button
+                                size="xs"
+                                onClick={() => handleSubmitToQueue(extension)}
+                                disabled={profile?.subscription_status === 'free' && (profile?.exchanges_this_month || 0) >= 4}
+                              >
+                                {profile?.subscription_status === 'free' && (profile?.exchanges_this_month || 0) >= 4 
+                                  ? 'Monthly Limit Reached' 
+                                  : 'Submit to Queue'
+                                }
+                              </Button>
+                              )
+                            )}
+                            {(extension.status === 'rejected') && profile?.credit_balance > 0 && (
+                              profile?.subscription_status !== 'free' || (profile?.exchanges_this_month || 0) < 4 && (
+                              <Button
+                                size="xs"
+                                color="orange"
+                                onClick={() => handleSubmitToQueue(extension)}
+                                disabled={!isPremium && (profile?.exchanges_this_month || 0) >= 4}
+                              >
+                                {!isPremium && (profile?.exchanges_this_month || 0) >= 4 
+                                  ? 'Monthly Limit Reached' 
+                                  : 'Re-submit to Queue'
+                                }
+                              </Button>
+                              )
+                            )}
+                            {(extension.status === 'reviewed') && (
+                              <Button
+                                size="xs"
+                                color="green"
+                                onClick={() => handleMoveToLibrary(extension)}
+                              >
+                                Add to Library
+                              </Button>
+                            )}
+                          </Group>
+                        </Group>
                       </Stack>
                     </Group>
-                    <Group position="apart" gap="xs" wrap="wrap">
-                      <Badge color={getStatusColor(extension.status)} size="sm">
-                        {getStatusLabel(extension.status)}
-                      </Badge>
-                      <Group>
-                        {extension.status === 'verified' && profile?.credit_balance > 0 && (
-                          profile?.subscription_status !== 'free' || (profile?.exchanges_this_month || 0) < 4 && (
-                          <Button
-                            size="xs"
-                            onClick={() => handleSubmitToQueue(extension)}
-                            disabled={profile?.subscription_status === 'free' && (profile?.exchanges_this_month || 0) >= 4}
-                          >
-                            {profile?.subscription_status === 'free' && (profile?.exchanges_this_month || 0) >= 4 
-                              ? 'Monthly Limit Reached' 
-                              : 'Submit to Queue'
-                            }
-                          </Button>
-                          )
-                        )}
-                        {extension.status === 'rejected' && profile?.credit_balance > 0 && (
-                          profile?.subscription_status !== 'free' || (profile?.exchanges_this_month || 0) < 4 && (
-                          <Button
-                            size="xs"
-                            color="orange"
-                            onClick={() => handleSubmitToQueue(extension)}
-                            disabled={!isPremium && (profile?.exchanges_this_month || 0) >= 4}
-                          >
-                            {!isPremium && (profile?.exchanges_this_month || 0) >= 4 
-                              ? 'Monthly Limit Reached' 
-                              : 'Re-submit to Queue'
-                            }
-                          </Button>
-                          )
-                        )}
-                        {extension.status === 'reviewed' && (
-                          <Button
-                            size="xs"
-                            color="green"
-                            onClick={() => handleMoveToLibrary(extension)}
-                          >
-                            Add to Library
-                          </Button>
-                        )}
-                      </Group>
-                    </Group>
-                  </Group>
+                  </Card>
                 ))
               )}
             </Stack>
@@ -534,54 +561,62 @@ export function DashboardPage() {
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card withBorder>
+          <Card withBorder p="xl" h="100%">
             <Group justify="space-between" mb="md">
               <Text fw={600}>Pending Reviews</Text>
               <Clock size={20} />
             </Group>
-            <Stack gap="sm">
+            <Stack gap="md">
               {assignments.length === 0 ? (
-                <Text c="dimmed" size="sm">
-                  {profile?.has_completed_qualification 
-                    ? "No pending reviews. Click 'Request Review Assignment' to get started!"
-                    : "Complete your qualification to start receiving review assignments."
-                  }
-                </Text>
+                <Stack align="center" gap="md" py="xl">
+                  <ThemeIcon size={60} radius="xl" variant="light" color="purple">
+                    <Star size={30} />
+                  </ThemeIcon>
+                  <Stack align="center" gap="xs">
+                    <Text fw={600} size="lg">No pending reviews</Text>
+                    <Text c="dimmed" size="sm" ta="center">
+                      {profile?.has_completed_qualification 
+                        ? "Click 'Request Assignment' to get started and earn credits!"
+                        : "Complete your qualification to start receiving review assignments."
+                      }
+                    </Text>
+                  </Stack>
+                  {profile?.has_completed_qualification && (
+                    <Button 
+                      leftSection={requestingAssignment ? <Loader size={14} /> : <Plus size={14} />}
+                      onClick={handleRequestAssignment}
+                      loading={requestingAssignment}
+                      disabled={assignments.length >= 1}
+                      variant="light"
+                    >
+                      Request Assignment
+                    </Button>
+                  )}
+                </Stack>
               ) : (
                 assignments.map((assignment) => (
-                  <div key={assignment.id}>
-                    <Text size="sm" fw={500}>
-                      Review Assignment #{assignment.assignment_number}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      Due: {new Date(assignment.due_at).toLocaleDateString()}
-                    </Text>
-                    <Progress
-                      value={Math.max(0, 100 - ((new Date(assignment.due_at).getTime() - Date.now()) / (7 * 24 * 60 * 60 * 1000)) * 100)}
-                      size="xs"
-                      mt="xs"
-                    />
-                  </div>
+                  <Card key={assignment.id} withBorder p="md" radius="md">
+                    <Stack gap="xs">
+                      <Text size="sm" fw={500}>
+                        Review Assignment #{assignment.assignment_number}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        Due: {new Date(assignment.due_at).toLocaleDateString()}
+                      </Text>
+                      <Progress
+                        value={Math.max(0, 100 - ((new Date(assignment.due_at).getTime() - Date.now()) / (7 * 24 * 60 * 60 * 1000)) * 100)}
+                        size="xs"
+                        radius="xl"
+                        color="blue"
+                      />
+                    </Stack>
+                  </Card>
                 ))
               )}
             </Stack>
             {assignments.length > 0 && (
-              <Button variant="light" size="xs" fullWidth mt="md" component="a" href="/reviews">
+              <Button variant="light" size="sm" fullWidth mt="md" component="a" href="/reviews">
                 View All Reviews
-              </Button>
-            )}
-            {profile?.has_completed_qualification && assignments.length === 0 && (
-              <Button 
-                variant="light" 
-                size="xs" 
-                fullWidth 
-                mt="md"
-                leftSection={requestingAssignment ? <Loader size={14} /> : <Plus size={14} />}
-                onClick={handleRequestAssignment}
-                loading={requestingAssignment}
-                disabled={(profile?.credit_balance ?? 0) < 1}
-              >
-                Request Assignment
               </Button>
             )}
           </Card>

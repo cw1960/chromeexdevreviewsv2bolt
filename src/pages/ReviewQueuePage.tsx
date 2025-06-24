@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Container,
   Title,
@@ -39,10 +40,12 @@ import {
   Upload,
   Award,
   Plus,
-  Loader
+  Loader,
+  Crown
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useSubscription } from '../hooks/useSubscription'
 import type { Database } from '../types/database'
 
 // Helper function to add timeout to promises
@@ -68,6 +71,8 @@ interface CountdownTimers {
 
 export function ReviewQueuePage() {
   const { profile, refreshProfile } = useAuth()
+  const { isPremium } = useSubscription()
+  const navigate = useNavigate()
   const [assignments, setAssignments] = useState<AssignmentWithExtension[]>([])
   const [loading, setLoading] = useState(true)
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false)
@@ -166,7 +171,7 @@ export function ReviewQueuePage() {
             extension:extensions(*)
           `)
           .eq('reviewer_id', profile.id)
-          .order('due_at', { ascending: true }),
+          .order('assigned_at', { ascending: false }),
         5000 // 5 second timeout
       )
 
@@ -418,6 +423,7 @@ export function ReviewQueuePage() {
               leftSection={requestingAssignment ? <Loader size={16} /> : <Plus size={16} />}
               onClick={handleRequestAssignment}
               loading={requestingAssignment}
+              disabled={activeAssignments.length >= 1}
             >
               Request Assignment
             </Button>
@@ -432,45 +438,46 @@ export function ReviewQueuePage() {
       </Group>
 
       {assignments.length === 0 ? (
-        <Alert
-          icon={<Package size={16} />}
-          title="No Review Assignments"
-          color="blue"
-        >
-          {!profile?.has_completed_qualification ? (
-            <>
-              You don't have any review assignments yet. Complete your reviewer qualification to start receiving assignments and earning credits.
+        <Card withBorder p="xl" radius="lg" shadow="sm">
+          <Stack align="center" gap="xl" py="xl">
+            <ThemeIcon size={80} radius="xl" variant="light" color="blue">
+              <Package size={40} />
+            </ThemeIcon>
+            <Stack align="center" gap="md">
+              <Title order={2} ta="center">No Review Assignments</Title>
+              <Text c="dimmed" size="lg" ta="center" maw={500}>
+                {!profile?.has_completed_qualification ? (
+                  "Complete your reviewer qualification to start receiving assignments and earning credits."
+                ) : (
+                  "You don't have any review assignments yet. Click 'Request Assignment' to get your next review task and start earning credits!"
+                )}
+              </Text>
+            </Stack>
+            {!profile?.has_completed_qualification ? (
               <Button 
                 component="a" 
                 href="/qualification" 
-                variant="light" 
-                size="sm" 
-                mt="sm"
+                variant="filled" 
+                size="lg"
+                radius="md"
+                leftSection={<CheckCircle size={20} />}
               >
                 Complete Qualification
               </Button>
-            </>
-          ) : (profile?.credit_balance ?? 0) < 1 ? (
-            <>
-              You need at least 1 credit to request a review assignment. Complete reviews to earn credits.
-            </>
-          ) : (
-            <>
-              You don't have any review assignments yet. Click "Request Assignment" to get your next review task!
+            ) : (
               <Button
-                leftSection={requestingAssignment ? <Loader size={16} /> : <Plus size={16} />}
+                leftSection={requestingAssignment ? <Loader size={20} /> : <Plus size={20} />}
                 onClick={handleRequestAssignment}
                 loading={requestingAssignment}
-                variant="light"
-                size="sm"
-                mt="sm"
-                disabled={activeAssignments.length >= 1 || (profile?.credit_balance ?? 0) < 1}
+                size="lg"
+                radius="md"
+                disabled={activeAssignments.length >= 1}
               >
                 Request Assignment
               </Button>
-            </>
-          )}
-        </Alert>
+            )}
+          </Stack>
+        </Card>
       ) : (
         <Stack gap="xl">
           {/* Active Assignments */}
@@ -482,14 +489,14 @@ export function ReviewQueuePage() {
               <Grid>
                 {activeAssignments.map((assignment) => (
                   <Grid.Col key={assignment.id} span={{ base: 12, md: 6 }}>
-                    <Card withBorder h="100%">
-                      <Stack gap="md">
+                    <Card withBorder h="100%" p="xl" radius="lg" shadow="sm">
+                      <Stack gap="lg">
                         <Group justify="space-between" align="flex-start">
                           <Group>
                             <Avatar 
                               src={assignment.extension?.logo_url} 
                               size="md"
-                              radius="sm"
+                              radius="md"
                             />
                             <div>
                               <Text fw={600} size="lg">
@@ -505,13 +512,13 @@ export function ReviewQueuePage() {
                           </Badge>
                         </Group>
 
-                        <Text size="sm" lineClamp={2}>
+                        <Text size="sm" lineClamp={2} c="dimmed">
                           {assignment.extension?.description || 'No description available'}
                         </Text>
 
-                        <Group gap="xs">
+                        <Group gap="xs" wrap="wrap">
                           {assignment.extension?.category?.map((cat) => (
-                            <Badge key={cat} size="xs" variant="light">
+                            <Badge key={cat} size="sm" variant="light" radius="md">
                               {cat}
                             </Badge>
                           ))}
@@ -539,7 +546,8 @@ export function ReviewQueuePage() {
                         <Group justify="space-between">
                           <Button
                             variant="light"
-                            size="sm"
+                            size="md"
+                            radius="md"
                             leftSection={<ExternalLink size={16} />}
                             onClick={() => assignment.extension?.chrome_store_url && window.open(assignment.extension.chrome_store_url, '_blank')}
                             disabled={!assignment.extension?.chrome_store_url}
@@ -549,7 +557,8 @@ export function ReviewQueuePage() {
                           
                           {!assignment.installed_at ? (
                             <Button
-                              size="sm"
+                              size="md"
+                              radius="md"
                               onClick={() => handleMarkInstalled(assignment)}
                             >
                               Mark as Installed
@@ -557,7 +566,8 @@ export function ReviewQueuePage() {
                           ) : (
                             <Tooltip label={!canSubmitReview(assignment) ? `Complete ${getTimeUntilReviewable(assignment)} waiting period before reviewing` : ""}>
                               <Button 
-                                size="sm" 
+                                size="md" 
+                                radius="md"
                                 color={canSubmitReview(assignment) ? "green" : ""} 
                                 leftSection={<MessageSquare size={16} />} 
                                 onClick={() => canSubmitReview(assignment) && openSubmissionModal(assignment)} 
@@ -574,6 +584,7 @@ export function ReviewQueuePage() {
                             icon={<AlertTriangle size={16} />}
                             color="orange"
                             size="sm"
+                            radius="md"
                           >
                             Due within 24 hours! Complete this review to avoid penalties.
                           </Alert>
@@ -594,13 +605,13 @@ export function ReviewQueuePage() {
               </Title>
               <Stack gap="sm">
                 {submittedAssignments.map((assignment) => (
-                  <Card key={assignment.id} withBorder>
+                  <Card key={assignment.id} withBorder p="lg" radius="lg" shadow="sm">
                     <Group justify="space-between">
                       <Group>
                         <Avatar 
                           src={assignment.extension?.logo_url} 
                           size="sm"
-                          radius="sm"
+                          radius="md"
                         />
                         <div>
                           <Text fw={500}>{assignment.extension?.name || 'Unknown Extension'}</Text>
@@ -633,30 +644,37 @@ export function ReviewQueuePage() {
                 Completed Reviews ({approvedAssignments.length})
               </Title>
               <Stack gap="sm">
-                {approvedAssignments.map((assignment) => (
-                  <Card key={assignment.id} withBorder>
+                {approvedAssignments
+                  .sort((a, b) => {
+                    // Sort by submitted_at in reverse chronological order (newest first)
+                    const dateA = a.submitted_at ? new Date(a.submitted_at).getTime() : 0
+                    const dateB = b.submitted_at ? new Date(b.submitted_at).getTime() : 0
+                    return dateB - dateA
+                  })
+                  .map((assignment) => (
+                  <Card key={assignment.id} withBorder p="lg" radius="lg" shadow="sm">
                     <Group justify="space-between">
                       <Group>
                         <Avatar 
                           src={assignment.extension?.logo_url} 
                           size="sm"
-                          radius="sm"
+                          radius="md"
                         />
                         <div>
                           <Text 
                             fw={500}
-                            component="a"
-                            href={assignment.extension?.chrome_store_url}
+                            component={assignment.chrome_store_proof ? "a" : "span"}
+                            href={assignment.chrome_store_proof || undefined}
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{ 
                               textDecoration: 'none', 
-                              color: 'var(--mantine-color-blue-6)',
-                              cursor: 'pointer'
+                              color: assignment.chrome_store_proof ? 'var(--mantine-color-blue-6)' : 'inherit',
+                              cursor: assignment.chrome_store_proof ? 'pointer' : 'default'
                             }}
-                            className="hover:underline"
+                            className={assignment.chrome_store_proof ? "hover:underline" : ""}
                           >
-                            {assignment.extension?.name || 'Extension Details Unavailable'}
+                            {assignment.extension?.name || 'Unknown Extension'}
                           </Text>
                           <Text size="sm" c="dimmed">
                             Completed {assignment.submitted_at ? new Date(assignment.submitted_at).toLocaleDateString() : 'Recently'}
@@ -682,22 +700,44 @@ export function ReviewQueuePage() {
         </Stack>
       )}
 
+      {!isPremium && (
+        <Alert
+          icon={<Crown size={16} />}
+          title="Join Review Fast Track for More Reviews"
+          color="blue"
+          mb="xl"
+        >
+          Review Fast Track members get 3x faster reviews and priority access to review assignments. Join now to unlock unlimited review opportunities!
+          <Button 
+            variant="light" 
+            size="sm" 
+            mt="sm"
+            leftSection={<Crown size={14} />}
+            onClick={() => navigate('/upgrade')}
+          >
+            Join Review Fast Track
+          </Button>
+        </Alert>
+      )}
+
       {/* Review Submission Modal */}
       <Modal
         opened={submissionModalOpen}
         onClose={() => setSubmissionModalOpen(false)}
         title="Submit Review"
         size="lg"
+        radius="lg"
+        shadow="xl"
       >
         {selectedAssignment && (
           <form onSubmit={submissionForm.onSubmit(handleSubmitReview)}>
-            <Stack>
-              <Card withBorder p="md">
+            <Stack gap="lg">
+              <Card withBorder p="lg" radius="md">
                 <Group>
                   <Avatar 
                     src={selectedAssignment.extension?.logo_url} 
                     size="md"
-                    radius="sm"
+                    radius="md"
                   />
                   <div>
                     <Text fw={600}>{selectedAssignment.extension?.name || 'Unknown Extension'}</Text>
@@ -714,6 +754,7 @@ export function ReviewQueuePage() {
                 value={submissionForm.values.submitted_date}
                 onChange={(value) => submissionForm.setFieldValue('submitted_date', value || new Date())}
                 required
+                radius="md"
                 maxDate={new Date()}
                 description="When did you submit this review to the Chrome Web Store?"
               />
@@ -732,6 +773,7 @@ export function ReviewQueuePage() {
                 placeholder="Write your detailed review here... (minimum 25 characters)"
                 required
                 rows={6}
+                radius="md"
                 {...submissionForm.getInputProps('review_text')}
               />
 
@@ -740,6 +782,7 @@ export function ReviewQueuePage() {
                 placeholder="https://chromewebstore.google.com/detail/..."
                 description="Link to your review on the Chrome Web Store"
                 required
+                radius="md"
                 {...submissionForm.getInputProps('chrome_store_proof')}
               />
 
@@ -752,15 +795,16 @@ export function ReviewQueuePage() {
               <Alert
                 icon={<CheckCircle size={16} />}
                 color="blue"
+                radius="md"
               >
                 Make sure your review follows Chrome Web Store guidelines and provides genuine feedback about the extension.
               </Alert>
 
-              <Group justify="flex-end">
-                <Button variant="light" onClick={() => setSubmissionModalOpen(false)}>
+              <Group justify="flex-end" gap="md" pt="md">
+                <Button variant="light" onClick={() => setSubmissionModalOpen(false)} radius="md">
                   Cancel
                 </Button>
-                <Button type="submit" leftSection={<Upload size={16} />}>
+                <Button type="submit" leftSection={<Upload size={16} />} radius="md">
                   Submit Review
                 </Button>
               </Group>

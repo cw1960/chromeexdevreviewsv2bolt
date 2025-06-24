@@ -10,10 +10,13 @@ import {
   ActionIcon,
   Text,
   Alert,
-  Avatar
+  Avatar,
+  Card,
+  Stack,
+  ThemeIcon
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { Plus, Edit, Trash2, Upload, AlertCircle } from 'lucide-react'
+import { Plus, Edit, Trash2, Upload, AlertCircle, Package } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { AddExtensionModal } from '../components/AddExtensionModal'
@@ -185,9 +188,8 @@ export function ExtensionLibraryPage() {
       const { error: extensionError } = await supabase
         .from('extensions')
         .update({ 
-          status: 'pending_verification',
+          status: 'queued',
           submitted_to_queue_at: new Date().toISOString(),
-          admin_verified: true
         })
         .eq('id', extension.id)
 
@@ -246,10 +248,11 @@ export function ExtensionLibraryPage() {
   const getStatusLabel = (status: Extension['status']) => {
     switch (status) {
       case 'verified': return 'In my Library'
-      case 'pending_verification': 
+      case 'library': return 'In my Library'
       case 'queued': return 'In Review Queue'
       case 'assigned': return 'Selected for Review'
       case 'reviewed': return 'Review Submitted'
+      case 'rejected': return 'Rejected'
       default: return status.replace('_', ' ')
     }
   }
@@ -283,7 +286,7 @@ export function ExtensionLibraryPage() {
     if (!isPremium && extensions.length >= 1) {
       notifications.show({
         title: 'Extension Limit Reached',
-        message: 'To add more extensions to the Extension Library, please upgrade to the "Premium" plan.',
+        message: 'To add more extensions to the Extension Library, please join Review Fast Track.',
         color: 'orange',
         autoClose: 8000
       })
@@ -319,7 +322,7 @@ export function ExtensionLibraryPage() {
         <Group>
           {!isPremium && extensions.length >= 1 && (
             <Text size="sm" c="dimmed">
-              Upgrade to premium to add more extensions
+              Join Review Fast Track to add more extensions
             </Text>
           )}
           <Button 
@@ -339,7 +342,7 @@ export function ExtensionLibraryPage() {
           color="blue"
           mb="md"
         >
-          You've reached the free tier limit of 1 extension. You can still submit this extension to the review queue up to 4 times per month. 
+          You've reached the free tier limit of 1 extension. You can still submit this extension to the review queue up to 4 times per month.
           <Button 
             variant="light" 
             size="sm" 
@@ -347,21 +350,37 @@ export function ExtensionLibraryPage() {
             ml="sm"
             onClick={() => navigate('/upgrade')}
           >
-            Upgrade to Premium
+            Join Review Fast Track
           </Button>
         </Alert>
       )}
 
       {extensions.length === 0 ? (
-        <Alert
-          icon={<AlertCircle size={16} />}
-          title="No extensions yet"
-          color="blue"
-        >
-          Start by adding your first Chrome extension to get authentic reviews from the developer community.
-        </Alert>
+        <Card withBorder p="xl" radius="lg" shadow="sm">
+          <Stack align="center" gap="xl" py="xl">
+            <ThemeIcon size={80} radius="xl" variant="light" color="blue">
+              <Package size={40} />
+            </ThemeIcon>
+            <Stack align="center" gap="md">
+              <Title order={2} ta="center">No extensions yet</Title>
+              <Text c="dimmed" size="lg" ta="center" maw={500}>
+                Start by adding your first Chrome extension to get authentic reviews from the developer community.
+              </Text>
+            </Stack>
+            <Button 
+              leftSection={<Plus size={20} />}
+              onClick={openModal}
+              size="lg"
+              radius="md"
+              disabled={!isPremium && extensions.length >= 1}
+            >
+              Add Your First Extension
+            </Button>
+          </Stack>
+        </Card>
       ) : (
-        <Table>
+        <Card withBorder radius="lg" shadow="sm">
+          <Table>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Extension</Table.Th>
@@ -385,7 +404,7 @@ export function ExtensionLibraryPage() {
                   </Group>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={getStatusColor(extension.status)}>
+                  <Badge color={getStatusColor(extension.status)} radius="md">
                     {getStatusLabel(extension.status)}
                   </Badge>
                 </Table.Td>
@@ -398,22 +417,25 @@ export function ExtensionLibraryPage() {
                   <Group gap="xs">
                     <ActionIcon
                       variant="light"
+                      radius="md"
                       onClick={() => handleEdit(extension)}
-                      disabled={!['library', 'verified', 'rejected'].includes(extension.status)} 
+                      disabled={!['library', 'verified', 'rejected'].includes(extension.status)}
                     >
                       <Edit size={16} />
                     </ActionIcon>
                     <ActionIcon
                       variant="light"
                       color="red"
+                      radius="md"
                       onClick={() => handleDelete(extension.id)}
-                      disabled={!['library', 'verified', 'rejected'].includes(extension.status)} 
+                      disabled={!['library', 'verified', 'rejected'].includes(extension.status)}
                     >
                       <Trash2 size={16} />
                     </ActionIcon>
-                    {extension.status === 'verified' && profile?.credit_balance > 0 && (
+                    {(extension.status === 'verified' || extension.status === 'library') && profile?.credit_balance > 0 && (
                       <Button
                         size="xs"
+                        radius="md"
                         onClick={() => handleSubmitToQueue(extension)}
                         disabled={!isPremium && (profile?.exchanges_this_month || 0) >= 4}
                       >
@@ -423,10 +445,11 @@ export function ExtensionLibraryPage() {
                         }
                       </Button>
                     )}
-                    {extension.status === 'rejected' && profile?.credit_balance > 0 && (
+                    {(extension.status === 'rejected') && profile?.credit_balance > 0 && (
                       <Button
                         size="xs"
                         color="orange"
+                        radius="md"
                         onClick={() => handleSubmitToQueue(extension)}
                         disabled={!isPremium && (profile?.exchanges_this_month || 0) >= 4}
                       >
@@ -436,10 +459,11 @@ export function ExtensionLibraryPage() {
                         }
                       </Button>
                     )}
-                    {extension.status === 'reviewed' && (
+                    {(extension.status === 'reviewed') && (
                       <Button
                         size="xs"
                         color="green"
+                        radius="md"
                         onClick={() => handleMoveToLibrary(extension)}
                       >
                         Add to Library
@@ -451,6 +475,7 @@ export function ExtensionLibraryPage() {
             ))}
           </Table.Tbody>
         </Table>
+        </Card>
       )}
 
       <AddExtensionModal

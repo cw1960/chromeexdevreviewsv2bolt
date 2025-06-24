@@ -22,6 +22,7 @@ import {
   CheckCircle,
   ArrowRight
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import type { Database } from '../types/database'
 
 type UserProfile = Database['public']['Tables']['users']['Row']
@@ -35,8 +36,10 @@ interface WelcomeModalProps {
 }
 
 export function WelcomeModal({ opened, onClose, profile, extensions }: WelcomeModalProps) {
+  const navigate = useNavigate()
+
   const handleUpgradeClick = () => {
-    window.location.href = '/upgrade'
+    navigate('/upgrade')
   }
 
   return (
@@ -116,7 +119,7 @@ export function WelcomeModal({ opened, onClose, profile, extensions }: WelcomeMo
                     <Stack gap={4} flex={1}>
                       <Text fw={600} size="md">Your Extension is Ready!</Text>
                       <Text size="sm" c="dimmed">
-                        "{extensions[0]?.name}" is in your library and ready to submit to the review queue
+                        Join Review Fast Track to add all your extensions and get 3x faster reviews!
                       </Text>
                     </Stack>
                   </Group>
@@ -177,7 +180,7 @@ export function WelcomeModal({ opened, onClose, profile, extensions }: WelcomeMo
                   <Text size="sm">Request review assignments to earn more credits</Text>
                 </List.Item>
                 <List.Item>
-                  <Text size="sm">Consider upgrading to premium for unlimited submissions</Text>
+                  <Text size="sm">Consider joining Review Fast Track for 3x faster reviews</Text>
                 </List.Item>
               </List>
             </Stack>
@@ -201,7 +204,7 @@ export function WelcomeModal({ opened, onClose, profile, extensions }: WelcomeMo
                   }
                 }}
               >
-                Upgrade to Premium
+                Join Review Fast Track
               </Button>
               
               <Button 

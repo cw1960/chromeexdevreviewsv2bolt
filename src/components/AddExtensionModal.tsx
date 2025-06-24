@@ -238,8 +238,7 @@ export function AddExtensionModal({
         extensionData = {
           ...values,
           owner_id: profile.id,
-          status: 'verified' as const,
-          admin_verified: false,
+          status: 'library' as const,
           logo_url: logoUrl,
           promo_code_expires_at: values.promo_code_expires_at || null
         }
@@ -306,38 +305,42 @@ export function AddExtensionModal({
       onClose={handleClose}
       title={initialExtensionData?.id ? 'Edit Extension' : 'Add Extension'}
       size="lg"
+      radius="lg"
+      shadow="xl"
     >
       <form onSubmit={form.onSubmit(handleSubmit)}>
-        <Stack>
+        <Stack gap="lg">
           <TextInput
             label="Extension Name"
             placeholder="My Awesome Extension"
             required
+            radius="md"
             {...form.getInputProps('name')}
           />
           
           <div>
-            <Text size="sm" fw={500} mb="xs">
+            <Text size="sm" fw={600} mb="xs">
               Extension Logo (Optional)
             </Text>
-            <Group align="flex-start" gap="md">
+            <Group align="flex-start" gap="lg">
               <FileInput
                 placeholder="Select PNG, JPG, JPEG, or SVG image"
                 accept="image/png,image/jpeg,image/jpg,image/svg+xml"
                 leftSection={<Upload size={16} />}
                 onChange={handleFileChange}
+                radius="md"
                 style={{ flex: 1 }}
               />
               {previewUrl && (
                 <Avatar
                   src={previewUrl}
-                  size="lg"
-                  radius="sm"
+                  size="xl"
+                  radius="md"
                   alt="Extension logo preview"
                 />
               )}
             </Group>
-            <Text size="xs" c="dimmed" mt="xs">
+            <Text size="xs" c="dimmed" mt="sm">
               Maximum file size: 5MB. Supported formats: PNG, JPG, JPEG, SVG
             </Text>
           </div>
@@ -347,6 +350,7 @@ export function AddExtensionModal({
             placeholder="https://chromewebstore.google.com/detail/..."
             required
             {...form.getInputProps('chrome_store_url')}
+            radius="md"
           />
           
           <MultiSelect
@@ -354,6 +358,7 @@ export function AddExtensionModal({
             placeholder="Select categories"
             data={CATEGORIES}
             {...form.getInputProps('category')}
+            radius="md"
           />
           
           <Textarea
@@ -361,27 +366,31 @@ export function AddExtensionModal({
             placeholder="Brief description of your extension..."
             rows={3}
             {...form.getInputProps('description')}
+            radius="md"
           />
           
           <Select
             label="Access Type"
             data={ACCESS_TYPES}
             {...form.getInputProps('access_type')}
+            radius="md"
           />
           
           {form.values.access_type === 'promo_code' && (
-            <>
+            <Stack gap="md">
               <TextInput
                 label="Promo Code"
                 placeholder="REVIEW2024"
                 {...form.getInputProps('promo_code')}
+                radius="md"
               />
               <TextInput
                 label="Promo Code Expires At"
                 type="date"
                 {...form.getInputProps('promo_code_expires_at')}
+                radius="md"
               />
-            </>
+            </Stack>
           )}
 
           {selectedFile && (
@@ -389,16 +398,17 @@ export function AddExtensionModal({
               icon={<AlertCircle size={16} />}
               color="blue"
               title="Image Upload"
+              radius="md"
             >
               Your logo will be uploaded when you save the extension.
             </Alert>
           )}
           
-          <Group justify="flex-end">
-            <Button variant="light" onClick={handleClose}>
+          <Group justify="flex-end" gap="md" pt="md">
+            <Button variant="light" onClick={handleClose} radius="md">
               Cancel
             </Button>
-            <Button type="submit" loading={uploading}>
+            <Button type="submit" loading={uploading} radius="md">
               {initialExtensionData?.id ? 'Update' : 'Add'} Extension
             </Button>
           </Group>

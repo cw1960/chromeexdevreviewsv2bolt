@@ -13,8 +13,8 @@ export const stripeProducts: StripeProduct[] = [
   {
     id: 'prod_SXdFNgdKCvjgWJ',
     priceId: 'price_1RcXz7EREJXnOif62V2u3kux',
-    name: 'Premium Tier (Monthly)',
-    description: 'Unlimited extensions, priority reviews, and advanced features',
+    name: 'Review Fast Track (Monthly)',
+    description: 'Get 3x faster reviews with unlimited extensions and unlimited monthly reviews',
     mode: 'subscription',
     price: 19.99,
     currency: 'usd',
@@ -23,8 +23,8 @@ export const stripeProducts: StripeProduct[] = [
   {
     id: 'prod_SXdGhmQV0M412A',
     priceId: 'price_1RcXzeEREJXnOif6qNEy2ES9',
-    name: 'Premium Tier (Yearly)',
-    description: 'Unlimited extensions, priority reviews, and advanced features - Save 17%',
+    name: 'Review Fast Track (Yearly)',
+    description: 'Get 3x faster reviews with unlimited extensions and unlimited monthly reviews - Save 37.5%',
     mode: 'subscription',
     price: 149.99,
     currency: 'usd',

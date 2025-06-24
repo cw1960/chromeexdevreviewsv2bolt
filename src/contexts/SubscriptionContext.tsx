@@ -123,7 +123,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       if (purchaseResult.customerInfo.entitlements.active['premium']) {
         notifications.show({
           title: 'Upgrade Successful!',
-          message: 'Welcome to ChromeExDev Premium! Your account has been upgraded.',
+          message: 'Welcome to Review Fast Track! Your account has been upgraded.',
           color: 'green'
         })
 
@@ -169,7 +169,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       if (customerInfo.entitlements.active['premium']) {
         notifications.show({
           title: 'Purchases Restored',
-          message: 'Your premium subscription has been restored successfully.',
+          message: 'Your Review Fast Track subscription has been restored successfully.',
           color: 'green'
         })
         
@@ -180,7 +180,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       } else {
         notifications.show({
           title: 'No Active Subscriptions',
-          message: 'No active premium subscriptions were found to restore.',
+          message: 'No active Review Fast Track subscriptions were found to restore.',
           color: 'blue'
         })
         return false

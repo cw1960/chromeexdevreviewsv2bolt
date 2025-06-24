@@ -83,7 +83,7 @@ serve(async (req) => {
     const totalUsers = users?.length || 0
     const totalExtensions = extensions?.length || 0
     const pendingVerifications = extensions?.filter(e => 
-      e.status === 'pending_verification' || e.status === 'queued'
+      e.status === 'queued'
     ).length || 0
     const activeReviews = assignments?.filter(a => a.status === 'assigned').length || 0
     const totalCreditsIssued = transactions?.filter(t => t.type === 'earned')

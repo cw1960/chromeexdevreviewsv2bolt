@@ -18,7 +18,6 @@ interface MailerLiteRequest {
 interface MailerLiteSubscriber {
   email: string
   fields?: Record<string, string | number>
-  groups?: string[]
 }
 
 serve(async (req) => {
@@ -78,7 +77,7 @@ serve(async (req) => {
 
     console.log(`📧 Processing MailerLite event: ${event_type} for email ending in ...${user_email.slice(-10)}`)
 
-    // Prepare subscriber data with custom fields
+    // Prepare subscriber data with custom fields (NO GROUPS in initial request)
     const subscriberData: MailerLiteSubscriber = {
       email: user_email,
       fields: {
@@ -88,24 +87,23 @@ serve(async (req) => {
       }
     }
 
-    // Map event types to MailerLite groups
+    // Map event types to MailerLite group names
     const eventGroupMapping: Record<string, string> = {
       'user_signed_up': 'new_signups',
       'review_completed': 'review_completed',
       'review_assigned': 'review_assigned',
+      'extension_assigned_to_reviewer': 'extension_assigned_to_reviewer',
+      'extension_reviewed_owner': 'extension_reviewed_owner',
       'credit_earned': 'credit_earned',
       'subscription_upgraded': 'premium_users',
       'qualification_completed': 'qualified_reviewers'
     }
 
-    // Add subscriber to appropriate group based on event type
     const groupName = eventGroupMapping[event_type]
-    if (groupName) {
-      subscriberData.groups = [groupName]
-    }
+    console.log(`🏷️ Event type "${event_type}" mapped to group: "${groupName || 'none'}"`)
 
-    // Create or update subscriber in MailerLite
-    console.log('📡 Making request to MailerLite API...')
+    // Create or update subscriber in MailerLite (WITHOUT groups)
+    console.log('📡 Making request to MailerLite API to create/update subscriber...')
     const mailerLiteResponse = await fetch('https://connect.mailerlite.com/api/subscribers', {
       method: 'POST',
       headers: {
@@ -121,9 +119,72 @@ serve(async (req) => {
       statusText: mailerLiteResponse.statusText,
       ok: mailerLiteResponse.ok
     })
+
     const mailerLiteResult = await mailerLiteResponse.json()
     console.log('📋 MailerLite API result:', JSON.stringify(mailerLiteResult, null, 2))
-    const success = mailerLiteResponse.ok
+
+    let subscriberId: string | null = null
+    let success = mailerLiteResponse.ok
+
+    if (success) {
+      // Extract subscriber ID from successful response
+      subscriberId = mailerLiteResult.data?.id
+      console.log('✅ Subscriber created/updated successfully, ID:', subscriberId)
+    } else {
+      // If subscriber already exists, try to update instead
+      if (mailerLiteResult.message && mailerLiteResult.message.includes('already exists')) {
+        console.log('📝 Subscriber exists, attempting to get subscriber info...')
+        
+        // Get subscriber ID first
+        const getSubscriberResponse = await fetch(`https://connect.mailerlite.com/api/subscribers/${user_email}`, {
+          headers: {
+            'Authorization': `Bearer ${mailerLiteApiKey}`,
+            'Accept': 'application/json'
+          }
+        })
+
+        if (getSubscriberResponse.ok) {
+          console.log('📋 Found existing subscriber, updating...')
+          const subscriberInfo = await getSubscriberResponse.json()
+          subscriberId = subscriberInfo.data?.id
+          
+          // Update subscriber
+          const updateResponse = await fetch(`https://connect.mailerlite.com/api/subscribers/${subscriberId}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${mailerLiteApiKey}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              fields: subscriberData.fields
+            })
+          })
+
+          if (updateResponse.ok) {
+            console.log('✅ Subscriber updated successfully')
+            success = true
+          } else {
+            console.error('❌ Failed to update existing subscriber')
+            const updateError = await updateResponse.json()
+            console.error('Update error:', updateError)
+          }
+        } else {
+          console.error('❌ Failed to get existing subscriber info')
+        }
+      } else {
+        console.error('❌ MailerLite API error details:', {
+          message: mailerLiteResult.message,
+          errors: mailerLiteResult.errors
+        })
+      }
+    }
+
+    // If we have a subscriber ID and a group to assign, do that now
+    if (subscriberId && groupName && success) {
+      console.log(`🏷️ Adding subscriber ${subscriberId} to group: ${groupName}`)
+      await addSubscriberToGroup(mailerLiteApiKey, subscriberId, groupName)
+    }
 
     // Log the email attempt in our database
     await supabase
@@ -138,69 +199,6 @@ serve(async (req) => {
       })
 
     if (!success) {
-      console.error('❌ MailerLite API error:', {
-        status: mailerLiteResponse.status,
-        statusText: mailerLiteResponse.statusText,
-        result: mailerLiteResult
-      })
-      
-      // If subscriber already exists, try to update instead
-      if (mailerLiteResult.message && mailerLiteResult.message.includes('already exists')) {
-        console.log('Subscriber exists, attempting to update...')
-        
-        // Get subscriber ID first
-        const getSubscriberResponse = await fetch(`https://connect.mailerlite.com/api/subscribers/${user_email}`, {
-          headers: {
-            'Authorization': `Bearer ${mailerLiteApiKey}`,
-            'Accept': 'application/json'
-          }
-        })
-
-        if (getSubscriberResponse.ok) {
-          console.log('📋 Found existing subscriber, updating...')
-          const subscriberInfo = await getSubscriberResponse.json()
-          
-          // Update subscriber
-          const updateResponse = await fetch(`https://connect.mailerlite.com/api/subscribers/${subscriberInfo.data.id}`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${mailerLiteApiKey}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-              fields: subscriberData.fields
-            })
-          })
-
-          if (updateResponse.ok) {
-            console.log('✅ Subscriber updated successfully')
-            
-            // If we have a group to add them to, do that separately
-            if (groupName) {
-              await addSubscriberToGroup(mailerLiteApiKey, subscriberInfo.data.id, groupName)
-            }
-
-            return new Response(
-              JSON.stringify({ 
-                success: true, 
-                message: 'Subscriber updated successfully',
-                mailerlite_response: await updateResponse.json()
-              }),
-              {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                status: 200,
-              }
-            )
-          }
-        }
-      } else {
-        console.error('❌ MailerLite API error details:', {
-          message: mailerLiteResult.message,
-          errors: mailerLiteResult.errors
-        })
-      }
-
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -220,7 +218,9 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: 'MailerLite event processed successfully',
-        mailerlite_response: mailerLiteResult
+        mailerlite_response: mailerLiteResult,
+        subscriber_id: subscriberId,
+        group_assigned: groupName || null
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -251,8 +251,9 @@ serve(async (req) => {
 // Helper function to add subscriber to a group
 async function addSubscriberToGroup(apiKey: string, subscriberId: string, groupName: string) {
   try {
-    console.log(`🏷️ Adding subscriber to group: ${groupName}`)
-    // First, get or create the group
+    console.log(`🏷️ Adding subscriber ${subscriberId} to group: ${groupName}`)
+    
+    // First, get all groups to find the one we want
     const groupsResponse = await fetch('https://connect.mailerlite.com/api/groups', {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -260,42 +261,64 @@ async function addSubscriberToGroup(apiKey: string, subscriberId: string, groupN
       }
     })
 
-    if (groupsResponse.ok) {
-      const groupsData = await groupsResponse.json()
-      let targetGroup = groupsData.data.find((group: any) => group.name === groupName)
+    if (!groupsResponse.ok) {
+      console.error('❌ Failed to fetch groups from MailerLite')
+      return
+    }
 
-      // Create group if it doesn't exist
-      if (!targetGroup) {
-        const createGroupResponse = await fetch('https://connect.mailerlite.com/api/groups', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ name: groupName })
-        })
+    const groupsData = await groupsResponse.json()
+    let targetGroup = groupsData.data?.find((group: any) => group.name === groupName)
 
-        if (createGroupResponse.ok) {
-          targetGroup = await createGroupResponse.json()
-          targetGroup = targetGroup.data
-          console.log(`✅ Created new group: ${groupName}`)
-        }
-      }
+    // Create group if it doesn't exist
+    if (!targetGroup) {
+      console.log(`📝 Group "${groupName}" doesn't exist, creating it...`)
+      const createGroupResponse = await fetch('https://connect.mailerlite.com/api/groups', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ name: groupName })
+      })
 
-      // Add subscriber to group
-      if (targetGroup) {
-        await fetch(`https://connect.mailerlite.com/api/subscribers/${subscriberId}/groups/${targetGroup.id}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Accept': 'application/json'
-          }
-        })
-        console.log(`✅ Added subscriber to group: ${groupName}`)
+      if (createGroupResponse.ok) {
+        const createGroupResult = await createGroupResponse.json()
+        targetGroup = createGroupResult.data
+        console.log(`✅ Created new group: ${groupName} with ID: ${targetGroup.id}`)
+      } else {
+        console.error('❌ Failed to create group:', groupName)
+        const createError = await createGroupResponse.json()
+        console.error('Create group error:', createError)
+        return
       }
     }
+
+    // Add subscriber to group using the numeric group ID
+    if (targetGroup && targetGroup.id) {
+      console.log(`🔗 Adding subscriber ${subscriberId} to group ID: ${targetGroup.id}`)
+      const addToGroupResponse = await fetch(`https://connect.mailerlite.com/api/subscribers/${subscriberId}/groups/${targetGroup.id}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Accept': 'application/json'
+        }
+      })
+
+      if (addToGroupResponse.ok) {
+        console.log(`✅ Successfully added subscriber to group: ${groupName}`)
+      } else {
+        console.error('❌ Failed to add subscriber to group')
+        const addError = await addToGroupResponse.json()
+        console.error('Add to group error:', addError)
+      }
+    } else {
+      console.error('❌ No target group found or group has no ID')
+    }
   } catch (error) {
-    console.error('❌ Error adding subscriber to group:', error.message)
+    console.error('❌ Error in addSubscriberToGroup:', {
+      message: error.message,
+      name: error.name
+    })
   }
 }

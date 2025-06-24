@@ -30,6 +30,7 @@ import {
   Users
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { triggerMailerLiteEvent } from '../utils/sendTransactionalEmail'
 
 // Custom hook to get window dimensions
 function useWindowSize() {

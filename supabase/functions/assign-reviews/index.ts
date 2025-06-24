@@ -25,15 +25,39 @@ interface ExtensionWithOwner {
 }
 
 serve(async (req) => {
+  console.log('🚀 assign-reviews Edge Function invoked!')
+  console.log('📝 Request method:', req.method)
+  console.log('🌐 Request URL:', req.url)
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('✅ Handling CORS preflight request')
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    console.log('🔍 Checking environment variables...')
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ Missing environment variables:', {
+        supabaseUrl: !!supabaseUrl,
+        supabaseServiceKey: !!supabaseServiceKey
+      })
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Server configuration error: Missing environment variables'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        }
+      )
+    }
+
+    console.log('✅ Environment variables check passed')
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const { max_assignments = 10 }: AssignReviewsRequest = await req.json().catch(() => ({}))
@@ -55,7 +79,7 @@ serve(async (req) => {
           subscription_status
         )
       `)
-      .eq('status', 'pending_verification')
+      .eq('status', 'queued')
       .order('submitted_to_queue_at', { ascending: true }) // FIFO: First in, first out
       .limit(max_assignments * 2) // Fetch more to ensure we have enough for both queues
 
@@ -294,6 +318,33 @@ serve(async (req) => {
           continue
         }
 
+        // 13. TRIGGER EMAIL TO EXTENSION OWNER
+        try {
+          console.log(`📧 Triggering email to extension owner: ${extension.owner.email}`)
+          const { error: mailerLiteError } = await supabase.functions.invoke('mailerlite-integration', {
+            body: {
+              user_email: extension.owner.email,
+              event_type: 'extension_assigned_to_reviewer',
+              custom_data: {
+                extension_name: extension.name,
+                owner_name: extension.owner.name,
+                assignment_number: nextAssignmentNumber,
+                assignment_date: new Date().toISOString(),
+                due_date: dueDate.toISOString()
+              }
+            }
+          })
+          
+          if (mailerLiteError) {
+            console.error('❌ MailerLite error for extension owner:', mailerLiteError)
+          } else {
+            console.log('✅ MailerLite extension assignment event triggered for owner')
+          }
+        } catch (mailerLiteError) {
+          console.error('❌ Failed to trigger MailerLite extension assignment event:', mailerLiteError)
+          // Don't fail the assignment process if MailerLite fails
+        }
+
         const subscriptionType = extension.owner.subscription_status || 'free'
         console.log(`Successfully created assignment #${nextAssignmentNumber} for ${subscriptionType} extension: ${extension.name}`)
         totalAssignmentsCreated++
@@ -304,7 +355,7 @@ serve(async (req) => {
       }
     }
 
-    // 13. Log assignment statistics
+    // 14. Log assignment statistics
     const premiumAssigned = assignmentQueue.slice(0, totalAssignmentsCreated).filter(ext => 
       (ext.owner.subscription_status || 'free') === 'premium'
     ).length
@@ -332,12 +383,17 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error in assign-reviews function:', error)
+    console.error('💥 CRITICAL ERROR in assign-reviews function:', {
+      message: error?.message || 'Unknown error',
+      name: error?.name || 'Unknown',
+      stack: error?.stack || 'No stack trace available'
+    })
     
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || 'Internal server error'
+        error: 'Internal server error occurred while processing assignments',
+        details: error?.message || 'Unknown error'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

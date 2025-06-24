@@ -13,7 +13,10 @@ CREATE TABLE IF NOT EXISTS users (
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   role text DEFAULT 'user' CHECK (role IN ('admin', 'moderator', 'user')),
-  onboarding_complete boolean DEFAULT false
+  onboarding_complete boolean DEFAULT false,
+  -- New columns for cookie consent
+  cookie_preferences text DEFAULT 'not_set' CHECK (cookie_preferences IN ('accepted', 'declined', 'not_set')),
+  cookie_consent_timestamp timestamptz
 );
 
 -- Extensions table
