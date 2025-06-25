@@ -97,13 +97,13 @@ export function AuthPage() {
     <Container size={420} my={40}>
       <Group justify="center" mb={30}>
         <img 
-          src="https://i.imgur.com/3xrcCgv.png" 
+          src="https://i.imgur.com/PL0Syo1.png" 
           alt="ChromeExDev Logo" 
           style={{ width: 180, height: 'auto' }}
         />
       </Group>
 
-      <Paper withBorder shadow="md" p={30} radius="md">
+      <Paper withBorder shadow="xl" p="xl" radius="lg">
         <Tabs value={activeTab} onChange={setActiveTab}>
           <Tabs.List grow>
             <Tabs.Tab value="signin">Sign In</Tabs.Tab>
@@ -112,11 +112,12 @@ export function AuthPage() {
 
           <Tabs.Panel value="signin" pt="md">
             <form onSubmit={signInForm.onSubmit(handleSignIn)}>
-              <Stack>
+              <Stack gap="lg">
                 <TextInput
                   label="Email"
                   placeholder="your@email.com"
                   required
+                  radius="md"
                   {...signInForm.getInputProps('email')}
                 />
                 <PasswordInput
@@ -124,8 +125,9 @@ export function AuthPage() {
                   placeholder="Your password"
                   required
                   {...signInForm.getInputProps('password')}
+                  radius="md"
                 />
-                <Button type="submit" fullWidth loading={loading}>
+                <Button type="submit" fullWidth loading={loading} radius="md" size="md">
                   Sign In
                 </Button>
               </Stack>
@@ -143,11 +145,12 @@ export function AuthPage() {
             </Alert>
             
             <form onSubmit={signUpForm.onSubmit(handleSignUp)}>
-              <Stack>
+              <Stack gap="lg">
                 <TextInput
                   label="First Name"
                   placeholder="John Doe"
                   required
+                  radius="md"
                   {...signUpForm.getInputProps('name')}
                 />
                 <TextInput
@@ -155,11 +158,13 @@ export function AuthPage() {
                   placeholder="your@email.com"
                   required
                   {...signUpForm.getInputProps('email')}
+                  radius="md"
                 />
                 <PasswordInput
                   label="Password"
                   placeholder="Your password"
                   required
+                  radius="md"
                   {...signUpForm.getInputProps('password')}
                 />
                 <PasswordInput
@@ -167,8 +172,9 @@ export function AuthPage() {
                   placeholder="Confirm your password"
                   required
                   {...signUpForm.getInputProps('confirmPassword')}
+                  radius="md"
                 />
-                <Button type="submit" fullWidth loading={loading}>
+                <Button type="submit" fullWidth loading={loading} radius="md" size="md">
                   Create Account
                 </Button>
               </Stack>

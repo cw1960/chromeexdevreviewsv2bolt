@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Container,
   Title,
@@ -13,16 +14,28 @@ import {
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { notifications } from '@mantine/notifications'
-import { User, Mail, Globe, Star } from 'lucide-react'
+import { User, Mail, Globe, Star, Crown } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { useSubscription } from '../hooks/useSubscription'
+
+// Helper function to add timeout to promises
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Query timed out after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ])
+}
 
 export function ProfilePage() {
   const { profile, updateProfile } = useAuth()
+  const { planName, isPremium } = useSubscription()
+  const navigate = useNavigate()
 
   const form = useForm({
     initialValues: {
-      name: profile?.name || '',
-      chrome_store_profile_url: profile?.chrome_store_profile_url || ''
+      name: profile?.name || ''
     },
     validate: {
       name: (value) => (value.length < 2 ? 'Name must be at least 2 characters' : null)
@@ -31,7 +44,7 @@ export function ProfilePage() {
 
   const handleSubmit = async (values: typeof form.values) => {
     try {
-      await updateProfile(values)
+      await withTimeout(updateProfile(values), 5000) // 5 second timeout
       notifications.show({
         title: 'Success',
         message: 'Profile updated successfully',
@@ -52,17 +65,18 @@ export function ProfilePage() {
 
       <Grid>
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Card withBorder p="lg">
-            <Title order={3} mb="md">
+          <Card withBorder p="xl" radius="lg" shadow="sm">
+            <Title order={3} mb="lg">
               Personal Information
             </Title>
             <form onSubmit={form.onSubmit(handleSubmit)}>
-              <Stack>
+              <Stack gap="lg">
                 <TextInput
                   label="Full Name"
                   placeholder="Your full name"
                   leftSection={<User size={16} />}
                   required
+                  radius="md"
                   {...form.getInputProps('name')}
                 />
                 <TextInput
@@ -70,17 +84,11 @@ export function ProfilePage() {
                   value={profile?.email || ''}
                   leftSection={<Mail size={16} />}
                   disabled
+                  radius="md"
                   description="Email cannot be changed"
                 />
-                <TextInput
-                  label="Chrome Web Store Profile URL"
-                  placeholder="https://chrome.google.com/webstore/developer/..."
-                  leftSection={<Globe size={16} />}
-                  description="Link to your Chrome Web Store developer profile (optional)"
-                  {...form.getInputProps('chrome_store_profile_url')}
-                />
-                <Group justify="flex-end">
-                  <Button type="submit">
+                <Group justify="flex-end" pt="md">
+                  <Button type="submit" radius="md">
                     Update Profile
                   </Button>
                 </Group>
@@ -90,13 +98,13 @@ export function ProfilePage() {
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Stack>
-            <Card withBorder p="lg">
+          <Stack gap="lg">
+            <Card withBorder p="xl" radius="lg" shadow="sm">
               <Group justify="space-between" mb="md">
-                <Text fw={600}>Account Status</Text>
+                <Text fw={700} size="lg">Account Status</Text>
                 <Badge color="green">Active</Badge>
               </Group>
-              <Stack gap="sm">
+              <Stack gap="md">
                 <Group justify="space-between">
                   <Text size="sm">Member Since</Text>
                   <Text size="sm" c="dimmed">
@@ -118,15 +126,24 @@ export function ProfilePage() {
                     {profile?.has_completed_qualification ? 'Completed' : 'Pending'}
                   </Badge>
                 </Group>
+                <Group justify="space-between">
+                  <Text size="sm">Subscription</Text>
+                  <Badge 
+                    size="sm" 
+                    color={planName === 'Premium' ? 'green' : 'blue'}
+                  >
+                    {planName}
+                  </Badge>
+                </Group>
               </Stack>
             </Card>
 
-            <Card withBorder p="lg">
+            <Card withBorder p="xl" radius="lg" shadow="sm">
               <Group justify="space-between" mb="md">
-                <Text fw={600}>Credits</Text>
+                <Text fw={700} size="lg">Credits</Text>
                 <Star size={20} />
               </Group>
-              <Text size="xl" fw={700} c="blue">
+              <Text size="2.5rem" fw={800} c="blue.6">
                 {profile?.credit_balance || 0}
               </Text>
               <Text size="sm" c="dimmed">
@@ -134,13 +151,25 @@ export function ProfilePage() {
               </Text>
             </Card>
 
-            <Card withBorder p="lg">
-              <Text fw={600} mb="md">Quick Actions</Text>
-              <Stack gap="xs">
-                <Button variant="light" fullWidth component="a" href="/extensions">
+            <Card withBorder p="xl" radius="lg" shadow="sm">
+              <Text fw={700} size="lg" mb="lg">Quick Actions</Text>
+              <Stack gap="md">
+                {!isPremium && (
+                  <Button 
+                    variant="gradient"
+                    gradient={{ from: 'yellow', to: 'orange' }}
+                    fullWidth 
+                    leftSection={<Crown size={16} />}
+                    onClick={() => navigate('/upgrade')}
+                    radius="md"
+                  >
+                    Join Review Fast Track
+                  </Button>
+                )}
+                <Button variant="light" fullWidth component="a" href="/extensions" radius="md">
                   Manage Extensions
                 </Button>
-                <Button variant="light" fullWidth component="a" href="/reviews">
+                <Button variant="light" fullWidth component="a" href="/reviews" radius="md">
                   View Reviews
                 </Button>
               </Stack>

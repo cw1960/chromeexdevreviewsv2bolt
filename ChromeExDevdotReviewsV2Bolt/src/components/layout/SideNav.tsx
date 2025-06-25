@@ -20,9 +20,11 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { useSubscription } from '../../hooks/useSubscription'
 
 export function SideNav() {
   const { profile, signOut } = useAuth()
+  const { planName } = useSubscription()
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -50,7 +52,7 @@ export function SideNav() {
       <AppShell.Section>
         <Group mb="md">
           <img 
-            src="https://i.imgur.com/3xrcCgv.png" 
+            src="https://i.imgur.com/PL0Syo1.png" 
             alt="ChromeExDev Logo" 
             style={{ width: 120, height: 'auto' }}
           />
@@ -100,6 +102,10 @@ export function SideNav() {
         <Group justify="space-between" mb="xs">
           <Text size="sm" c="dimmed">Credits</Text>
           <Text size="sm" fw={600}>{profile?.credit_balance || 0}</Text>
+        </Group>
+        <Group justify="space-between" mb="xs">
+          <Text size="sm" c="dimmed">Plan</Text>
+          <Text size="sm" fw={600}>{planName === 'Review Fast Track (Monthly)' || planName === 'Review Fast Track (Yearly)' ? 'Review Fast Track' : planName}</Text>
         </Group>
         <Button
           variant="light"
