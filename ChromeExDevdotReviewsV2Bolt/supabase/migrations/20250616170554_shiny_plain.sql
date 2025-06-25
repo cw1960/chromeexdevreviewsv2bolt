@@ -1,27 +1,3 @@
-/*
-  # Initial Database Schema for ChromeExDev.reviewsV2
-
-  1. New Tables
-    - `users` - User profiles with authentication and role management
-    - `extensions` - Chrome extension management with verification workflow
-    - `credit_transactions` - Credit balance tracking and transaction history
-    - `review_assignments` - Review assignment management with batch system
-    - `assignment_batches` - Grouping review assignments for credit tracking
-    - `email_logs` - Audit trail for all transactional emails
-
-  2. Security
-    - Enable RLS on all tables
-    - Add policies for authenticated users to manage their own data
-    - Admin-only policies for sensitive operations
-
-  3. Storage
-    - Create bucket for extension logos
-    - Configure public access for logo display
-
-  4. Functions
-    - Create helper functions for metrics and queue management
-*/
-
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -36,7 +12,11 @@ CREATE TABLE IF NOT EXISTS users (
   has_completed_qualification boolean DEFAULT false,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
-  role text DEFAULT 'user' CHECK (role IN ('admin', 'moderator', 'user'))
+  role text DEFAULT 'user' CHECK (role IN ('admin', 'moderator', 'user')),
+  onboarding_complete boolean DEFAULT false,
+  -- New columns for cookie consent
+  cookie_preferences text DEFAULT 'not_set' CHECK (cookie_preferences IN ('accepted', 'declined', 'not_set')),
+  cookie_consent_timestamp timestamptz
 );
 
 -- Extensions table
@@ -113,6 +93,15 @@ CREATE TABLE IF NOT EXISTS email_logs (
   error_message text
 );
 
+-- Review relationships table (prevents 1-for-1 review exchanges)
+CREATE TABLE IF NOT EXISTS review_relationships (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  reviewer_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reviewed_owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  extension_id uuid NOT NULL REFERENCES extensions(id) ON DELETE CASCADE,
+  created_at timestamptz DEFAULT now()
+);
+
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE extensions ENABLE ROW LEVEL SECURITY;
@@ -120,20 +109,31 @@ ALTER TABLE credit_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assignment_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE review_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE review_relationships ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users table
+DROP POLICY IF EXISTS "Users can read own profile" ON users;
 CREATE POLICY "Users can read own profile"
   ON users
   FOR SELECT
   TO authenticated
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can update own profile" ON users;
 CREATE POLICY "Users can update own profile"
   ON users
   FOR UPDATE
   TO authenticated
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can insert own profile" ON users;
+CREATE POLICY "Users can insert own profile"
+  ON users
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Admins can read all users" ON users;
 CREATE POLICY "Admins can read all users"
   ON users
   FOR SELECT
@@ -146,12 +146,14 @@ CREATE POLICY "Admins can read all users"
   );
 
 -- RLS Policies for extensions table
+DROP POLICY IF EXISTS "Users can manage own extensions" ON extensions;
 CREATE POLICY "Users can manage own extensions"
   ON extensions
   FOR ALL
   TO authenticated
   USING (owner_id = auth.uid());
 
+DROP POLICY IF EXISTS "Admins can read all extensions" ON extensions;
 CREATE POLICY "Admins can read all extensions"
   ON extensions
   FOR SELECT
@@ -163,6 +165,7 @@ CREATE POLICY "Admins can read all extensions"
     )
   );
 
+DROP POLICY IF EXISTS "Admins can update extension verification" ON extensions;
 CREATE POLICY "Admins can update extension verification"
   ON extensions
   FOR UPDATE
@@ -175,12 +178,14 @@ CREATE POLICY "Admins can update extension verification"
   );
 
 -- RLS Policies for credit_transactions table
+DROP POLICY IF EXISTS "Users can read own transactions" ON credit_transactions;
 CREATE POLICY "Users can read own transactions"
   ON credit_transactions
   FOR SELECT
   TO authenticated
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "System can insert transactions" ON credit_transactions;
 CREATE POLICY "System can insert transactions"
   ON credit_transactions
   FOR INSERT
@@ -188,6 +193,7 @@ CREATE POLICY "System can insert transactions"
   WITH CHECK (user_id = auth.uid());
 
 -- RLS Policies for assignment_batches table
+DROP POLICY IF EXISTS "Users can read own batches" ON assignment_batches;
 CREATE POLICY "Users can read own batches"
   ON assignment_batches
   FOR SELECT
@@ -195,12 +201,14 @@ CREATE POLICY "Users can read own batches"
   USING (reviewer_id = auth.uid());
 
 -- RLS Policies for review_assignments table
+DROP POLICY IF EXISTS "Users can read own assignments" ON review_assignments;
 CREATE POLICY "Users can read own assignments"
   ON review_assignments
   FOR SELECT
   TO authenticated
   USING (reviewer_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update own assignments" ON review_assignments;
 CREATE POLICY "Users can update own assignments"
   ON review_assignments
   FOR UPDATE
@@ -208,8 +216,36 @@ CREATE POLICY "Users can update own assignments"
   USING (reviewer_id = auth.uid());
 
 -- RLS Policies for email_logs table
+DROP POLICY IF EXISTS "Admins can read email logs" ON email_logs;
 CREATE POLICY "Admins can read email logs"
   ON email_logs
+  FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- RLS Policies for review_relationships table (FIXED - added DROP POLICY IF EXISTS)
+DROP POLICY IF EXISTS "Users can read own review relationships" ON review_relationships;
+CREATE POLICY "Users can read own review relationships"
+  ON review_relationships
+  FOR SELECT
+  TO authenticated
+  USING (reviewer_id = auth.uid() OR reviewed_owner_id = auth.uid());
+
+DROP POLICY IF EXISTS "System can insert review relationships" ON review_relationships;
+CREATE POLICY "System can insert review relationships"
+  ON review_relationships
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (reviewer_id = auth.uid());
+
+DROP POLICY IF EXISTS "Admins can read all review relationships" ON review_relationships;
+CREATE POLICY "Admins can read all review relationships"
+  ON review_relationships
   FOR SELECT
   TO authenticated
   USING (
@@ -226,12 +262,15 @@ CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_id ON credit_transaction
 CREATE INDEX IF NOT EXISTS idx_review_assignments_reviewer_id ON review_assignments(reviewer_id);
 CREATE INDEX IF NOT EXISTS idx_review_assignments_extension_id ON review_assignments(extension_id);
 CREATE INDEX IF NOT EXISTS idx_email_logs_created_at ON email_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_review_relationships_reviewer_id ON review_relationships(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_review_relationships_reviewed_owner_id ON review_relationships(reviewed_owner_id);
+CREATE INDEX IF NOT EXISTS idx_review_relationships_extension_id ON review_relationships(extension_id);
 
 -- Function to update credit balance automatically
 CREATE OR REPLACE FUNCTION update_credit_balance()
 RETURNS TRIGGER AS $$
 BEGIN
-  UPDATE users 
+  UPDATE users
   SET credit_balance = credit_balance + NEW.amount
   WHERE id = NEW.user_id;
   RETURN NEW;
@@ -239,6 +278,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to automatically update credit balance
+DROP TRIGGER IF EXISTS credit_transaction_trigger ON credit_transactions;
 CREATE TRIGGER credit_transaction_trigger
   AFTER INSERT ON credit_transactions
   FOR EACH ROW
@@ -276,41 +316,50 @@ CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO users (id, email, name)
-  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'name');
+  VALUES (
+    NEW.id,
+    NEW.email,
+    NULLIF(NEW.raw_user_meta_data->>'name', '') -- Convert empty string to NULL
+  );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger for new user creation
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW
   EXECUTE FUNCTION handle_new_user();
 
 -- Create storage bucket for extension logos
-INSERT INTO storage.buckets (id, name, public) 
+INSERT INTO storage.buckets (id, name, public)
 VALUES ('extension-logos2', 'extension-logos2', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policy for extension logos
+DROP POLICY IF EXISTS "Users can upload own extension logos" ON storage.objects;
 CREATE POLICY "Users can upload own extension logos"
   ON storage.objects
   FOR INSERT
   TO authenticated
   WITH CHECK (bucket_id = 'extension-logos2');
 
+DROP POLICY IF EXISTS "Extension logos are publicly viewable" ON storage.objects;
 CREATE POLICY "Extension logos are publicly viewable"
   ON storage.objects
   FOR SELECT
   TO public
   USING (bucket_id = 'extension-logos2');
 
+DROP POLICY IF EXISTS "Users can update own extension logos" ON storage.objects;
 CREATE POLICY "Users can update own extension logos"
   ON storage.objects
   FOR UPDATE
   TO authenticated
   USING (bucket_id = 'extension-logos2' AND owner = auth.uid());
 
+DROP POLICY IF EXISTS "Users can delete own extension logos" ON storage.objects;
 CREATE POLICY "Users can delete own extension logos"
   ON storage.objects
   FOR DELETE

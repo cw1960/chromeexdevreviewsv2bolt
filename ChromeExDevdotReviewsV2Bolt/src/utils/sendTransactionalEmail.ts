@@ -1,26 +1,60 @@
 import { supabase } from '../lib/supabase'
 
-interface EmailParams {
+interface MailerLiteEmailParams {
   to: string
   subject: string
   html: string
   type: string
+  custom_data?: Record<string, any>
 }
 
-export async function sendTransactionalEmail(params: EmailParams) {
+export async function sendTransactionalEmail(params: MailerLiteEmailParams) {
   try {
-    const { data, error } = await supabase.functions.invoke('send-email', {
-      body: params
+    const { data, error } = await supabase.functions.invoke('mailerlite-integration', {
+      body: {
+        user_email: params.to,
+        event_type: params.type,
+        subject: params.subject,
+        html_content: params.html,
+        custom_data: params.custom_data || {}
+      }
     })
 
     if (error) {
-      console.error('Error sending email:', error)
+      console.error('Error sending email via MailerLite:', error)
       throw error
     }
 
     return data
   } catch (error) {
-    console.error('Failed to send email:', error)
+    console.error('Failed to send email via MailerLite:', error)
+    throw error
+  }
+}
+
+// Helper function to trigger MailerLite events without email content
+export async function triggerMailerLiteEvent(
+  userEmail: string, 
+  eventType: string, 
+  customData: Record<string, any> = {}
+) {
+  try {
+    const { data, error } = await supabase.functions.invoke('mailerlite-integration', {
+      body: {
+        user_email: userEmail,
+        event_type: eventType,
+        custom_data: customData
+      }
+    })
+
+    if (error) {
+      console.error('Error triggering MailerLite event:', error)
+      throw error
+    }
+
+    return data
+  } catch (error) {
+    console.error('Failed to trigger MailerLite event:', error)
     throw error
   }
 }
@@ -49,7 +83,7 @@ export const createApprovalEmail = (extensionName: string, userName: string) => 
       <p>Hi ${userName},</p>
       <p>Great news! Your extension "${extensionName}" has been approved and is now verified in our system.</p>
       <p>You can now submit it to the review queue to start receiving authentic reviews from our developer community.</p>
-      <p><a href="${window.location.origin}/extensions" class="button">Manage Extensions</a></p>
+      <p><a href="https://chromeexdev.reviews/extensions" class="button">Manage Extensions</a></p>
       <p>Best regards,<br>The ChromeExDev.reviews Team</p>
     </div>
   </div>
@@ -84,7 +118,7 @@ export const createRejectionEmail = (extensionName: string, userName: string, re
         <strong>Reason:</strong> ${reason}
       </div>
       <p>Please make the necessary changes and resubmit your extension for review.</p>
-      <p><a href="${window.location.origin}/extensions" class="button">Edit Extension</a></p>
+      <p><a href="https://chromeexdev.reviews/extensions" class="button">Edit Extension</a></p>
       <p>Best regards,<br>The ChromeExDev.reviews Team</p>
     </div>
   </div>

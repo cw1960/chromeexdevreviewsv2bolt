@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Container,
   Title,
@@ -20,8 +21,6 @@ import {
   Progress,
   Avatar,
   Divider,
-  NumberInput,
-  Switch
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { notifications } from '@mantine/notifications'
@@ -32,14 +31,14 @@ import {
   TrendingUp, 
   CheckCircle, 
   XCircle, 
-  Edit, 
   Eye,
   AlertTriangle,
   Clock,
   Shield,
   CreditCard,
   Mail,
-  Settings
+  Settings,
+  Edit
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -61,8 +60,17 @@ interface AssignmentWithDetails extends ReviewAssignment {
 
 export function AdminDashboardPage() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
+  
+  // DEBUGGING: Log component initialization
+  console.log('🚀 AdminDashboardPage component initialized')
+  console.log('👤 Profile from useAuth:', profile)
+  console.log('🔐 Profile role:', profile?.role)
+  console.log('📍 Current location:', window.location.pathname)
+  
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<string | null>('overview')
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false)
   
   // Data states
   const [stats, setStats] = useState({
@@ -79,104 +87,41 @@ export function AdminDashboardPage() {
   const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([])
   const [transactions, setTransactions] = useState<CreditTransaction[]>([])
   
-  // Modal states
-  const [verificationModalOpen, setVerificationModalOpen] = useState(false)
-  const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null)
-  const [userModalOpen, setUserModalOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-
-  const verificationForm = useForm({
-    initialValues: {
-      status: 'verified' as 'verified' | 'rejected',
-      rejection_reason: ''
-    }
-  })
-
-  const userForm = useForm({
-    initialValues: {
-      credit_balance: 0,
-      role: 'user' as 'admin' | 'moderator' | 'user',
-      has_completed_qualification: false
-    }
-  })
-
   useEffect(() => {
     if (profile?.role === 'admin') {
       fetchAdminData()
     }
-  }, [profile])
+  }, [profile?.role])
 
   const fetchAdminData = async () => {
     try {
       setLoading(true)
       
-      // Fetch all data in parallel
-      const [
-        usersResult,
-        extensionsResult,
-        assignmentsResult,
-        transactionsResult
-      ] = await Promise.all([
-        supabase.from('users').select('*').order('created_at', { ascending: false }),
-        supabase
-          .from('extensions')
-          .select(`
-            *,
-            owner:users(*)
-          `)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('review_assignments')
-          .select(`
-            *,
-            extension:extensions(*),
-            reviewer:users(*)
-          `)
-          .order('assigned_at', { ascending: false })
-          .limit(50),
-        supabase
-          .from('credit_transactions')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(100)
-      ])
+      const { data, error } = await supabase.functions.invoke('fetch-admin-dashboard-data')
 
-      if (usersResult.error) throw usersResult.error
-      if (extensionsResult.error) throw extensionsResult.error
-      if (assignmentsResult.error) throw assignmentsResult.error
-      if (transactionsResult.error) throw transactionsResult.error
+      if (error) {
+        console.error('Edge function error:', error)
+        throw error
+      }
 
-      const usersData = usersResult.data || []
-      const extensionsData = extensionsResult.data || []
-      const assignmentsData = assignmentsResult.data || []
-      const transactionsData = transactionsResult.data || []
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to fetch admin data')
+      }
 
+      const { users: usersData, extensions: extensionsData, assignments: assignmentsData, transactions: transactionsData, stats: statsData } = data.data
+
+      // Set the data from Edge Function response
       setUsers(usersData)
       setExtensions(extensionsData as ExtensionWithOwner[])
       setAssignments(assignmentsData as AssignmentWithDetails[])
       setTransactions(transactionsData)
-
-      // Calculate stats
-      const totalCreditsIssued = transactionsData
-        .filter(t => t.type === 'earned')
-        .reduce((sum, t) => sum + t.amount, 0)
-
-      setStats({
-        totalUsers: usersData.length,
-        totalExtensions: extensionsData.length,
-        pendingVerifications: extensionsData.filter(e => 
-          e.status === 'pending_verification' || e.status === 'queued'
-        ).length,
-        activeReviews: assignmentsData.filter(a => a.status === 'assigned').length,
-        totalCreditsIssued,
-        avgQueueTime: '2.3 days' // This would be calculated from actual data
-      })
+      setStats(statsData)
 
     } catch (error) {
       console.error('Error fetching admin data:', error)
       notifications.show({
         title: 'Error',
-        message: 'Failed to load admin data',
+        message: 'Failed to load admin data. Please try again.',
         color: 'red'
       })
     } finally {
@@ -184,107 +129,44 @@ export function AdminDashboardPage() {
     }
   }
 
-  const handleVerifyExtension = async (values: typeof verificationForm.values) => {
-    if (!selectedExtension) return
-
-    try {
-      const { error } = await supabase
-        .from('extensions')
-        .update({
-          status: values.status,
-          rejection_reason: values.status === 'rejected' ? values.rejection_reason : null,
-          admin_verified: values.status === 'verified'
-        })
-        .eq('id', selectedExtension.id)
-
-      if (error) throw error
-
-      notifications.show({
-        title: 'Success',
-        message: `Extension ${values.status === 'verified' ? 'approved' : 'rejected'}`,
-        color: values.status === 'verified' ? 'green' : 'orange'
-      })
-
-      setVerificationModalOpen(false)
-      setSelectedExtension(null)
-      verificationForm.reset()
-      fetchAdminData()
-    } catch (error: any) {
-      notifications.show({
-        title: 'Error',
-        message: error.message || 'Failed to update extension',
-        color: 'red'
-      })
-    }
+  const navigateToUserProfile = (userId: string) => {
+    navigate(`/admin/users/${userId}`)
   }
 
-  const handleUpdateUser = async (values: typeof userForm.values) => {
-    if (!selectedUser) return
-
+  const handleTriggerAssignments = async () => {
+    setAssignmentsLoading(true)
     try {
-      // Update user profile
-      const { error: userError } = await supabase
-        .from('users')
-        .update({
-          credit_balance: values.credit_balance,
-          role: values.role,
-          has_completed_qualification: values.has_completed_qualification
-        })
-        .eq('id', selectedUser.id)
+      const { data, error } = await supabase.functions.invoke('assign-reviews', {
+        body: { max_assignments: 10 }
+      })
 
-      if (userError) throw userError
+      if (error) {
+        console.error('Edge function error:', error)
+        throw error
+      }
 
-      // If credit balance changed, create a transaction record
-      const creditDiff = values.credit_balance - selectedUser.credit_balance
-      if (creditDiff !== 0) {
-        const { error: transactionError } = await supabase
-          .from('credit_transactions')
-          .insert({
-            user_id: selectedUser.id,
-            amount: creditDiff,
-            type: creditDiff > 0 ? 'earned' : 'spent',
-            description: `Admin adjustment: ${creditDiff > 0 ? 'added' : 'removed'} ${Math.abs(creditDiff)} credits`
-          })
-
-        if (transactionError) throw transactionError
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to trigger assignments')
       }
 
       notifications.show({
-        title: 'Success',
-        message: 'User updated successfully',
+        title: 'Assignments Triggered',
+        message: `Successfully created ${data.assignments_created} new review assignments`,
         color: 'green'
       })
 
-      setUserModalOpen(false)
-      setSelectedUser(null)
-      userForm.reset()
+      // Refresh the admin data to show updated stats
       fetchAdminData()
     } catch (error: any) {
+      console.error('Assignment trigger error:', error)
       notifications.show({
         title: 'Error',
-        message: error.message || 'Failed to update user',
+        message: error.message || 'Failed to trigger assignments',
         color: 'red'
       })
+    } finally {
+      setAssignmentsLoading(false)
     }
-  }
-
-  const openVerificationModal = (extension: Extension) => {
-    setSelectedExtension(extension)
-    verificationForm.setValues({
-      status: 'verified',
-      rejection_reason: ''
-    })
-    setVerificationModalOpen(true)
-  }
-
-  const openUserModal = (user: User) => {
-    setSelectedUser(user)
-    userForm.setValues({
-      credit_balance: user.credit_balance,
-      role: user.role,
-      has_completed_qualification: user.has_completed_qualification
-    })
-    setUserModalOpen(true)
   }
 
   const getStatusColor = (status: Extension['status']) => {
@@ -312,7 +194,6 @@ export function AdminDashboardPage() {
     switch (status) {
       case 'verified': 
       case 'library': return 'In my Library'
-      case 'pending_verification': return 'In Review Queue'
       case 'queued': return 'In Review Queue'
       case 'assigned': return 'Selected for Review'
       case 'reviewed': return 'Review Submitted'
@@ -322,6 +203,9 @@ export function AdminDashboardPage() {
   }
 
   if (profile?.role !== 'admin') {
+    console.log('🚫 Access denied - user is not admin')
+    console.log('👤 Current profile:', profile)
+    console.log('🔐 Current role:', profile?.role)
     return (
       <Container size="md">
         <Alert
@@ -336,6 +220,8 @@ export function AdminDashboardPage() {
   }
 
   if (loading) {
+    console.log('⏳ Showing loading state')
+    console.log('🔄 Loading value:', loading)
     return (
       <Container size="lg">
         <Text>Loading admin dashboard...</Text>
@@ -343,8 +229,22 @@ export function AdminDashboardPage() {
     )
   }
 
+  // DEBUGGING: Log final render state
+  console.log('🎨 About to render main dashboard content')
+  console.log('📊 Final stats for render:', stats)
+  console.log('📦 Final extensions count:', extensions.length)
+  console.log('👥 Final users count:', users.length)
+  console.log('📝 Final assignments count:', assignments.length)
+  console.log('💳 Final transactions count:', transactions.length)
+  console.log('📑 Active tab:', activeTab)
+
   return (
     <Container size="xl">
+      {/* DEBUGGING: Add visible indicator that component is rendering */}
+      <div style={{ position: 'fixed', top: 10, right: 10, background: 'green', color: 'white', padding: '5px', zIndex: 9999, fontSize: '12px' }}>
+        Admin Dashboard Loaded ✅
+      </div>
+      
       <Group justify="space-between" mb="xl">
         <div>
           <Title order={1}>Admin Dashboard</Title>
@@ -352,8 +252,19 @@ export function AdminDashboardPage() {
             Manage users, extensions, and review assignments
           </Text>
         </div>
-        <Badge size="lg" variant="light" color="red">
-          Administrator
+        <Group>
+          <Badge size="lg" variant="light" color="red">
+            Administrator
+          </Badge>
+        </Group>
+      </Group>
+
+      <Group mb="md">
+        <Badge color="blue">
+          {assignments.filter(a => a.status === 'assigned').length} Active Reviews
+        </Badge>
+        <Badge color="green">
+          {assignments.filter(a => a.status === 'approved').length} Completed Reviews
         </Badge>
       </Group>
 
@@ -411,8 +322,7 @@ export function AdminDashboardPage() {
             <Grid.Col span={{ base: 12, md: 4 }}>
               <Card withBorder>
                 <Group justify="space-between" mb="md">
-                  <Text fw={600}>Pending Verifications</Text>
-                  <Clock size={20} />
+                  <Text fw={600}>Extensions in Queue</Text>
                 </Group>
                 <Text size="xl" fw={700} mb="xs" c={stats.pendingVerifications > 0 ? 'orange' : 'green'}>
                   {stats.pendingVerifications}
@@ -474,9 +384,6 @@ export function AdminDashboardPage() {
           <Card withBorder>
             <Group justify="space-between" mb="md">
               <Text fw={600}>Extension Management</Text>
-              <Badge color="orange">
-                {stats.pendingVerifications} In Queue
-              </Badge>
             </Group>
             <Table>
               <Table.Thead>
@@ -484,6 +391,7 @@ export function AdminDashboardPage() {
                   <Table.Th>Extension</Table.Th>
                   <Table.Th>Owner</Table.Th>
                   <Table.Th>Status</Table.Th>
+                    <Table.Th>Plan</Table.Th>
                   <Table.Th>Submitted</Table.Th>
                   <Table.Th>Actions</Table.Th>
                 </Table.Tr>
@@ -495,7 +403,16 @@ export function AdminDashboardPage() {
                       <Group>
                         <Avatar size="sm" src={extension.logo_url} />
                         <div>
-                          <Text fw={500}>{extension.name}</Text>
+                          <Text 
+                            fw={500} 
+                            component="a" 
+                            href={extension.chrome_store_url} 
+                            target="_blank"
+                            style={{ textDecoration: 'none', color: 'inherit' }}
+                            className="hover:underline"
+                          >
+                            {extension.name}
+                          </Text>
                           <Text size="sm" c="dimmed" truncate maw={200}>
                             {extension.description}
                           </Text>
@@ -503,11 +420,33 @@ export function AdminDashboardPage() {
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{extension.owner?.name || 'Unknown'}</Text>
+                      <Text 
+                        size="sm" 
+                        component="button"
+                        onClick={() => extension.owner?.id && navigateToUserProfile(extension.owner.id)}
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer',
+                          color: 'var(--mantine-color-blue-6)',
+                          textDecoration: 'none'
+                        }}
+                        className="hover:underline"
+                      >
+                        {extension.owner?.name || 'Unknown'}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <Badge color={getStatusColor(extension.status)} size="sm">
                         {getStatusLabel(extension.status)}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge 
+                        color={extension.owner?.subscription_status === 'premium' ? 'green' : 'blue'} 
+                        size="sm"
+                      >
+                        {extension.owner?.subscription_status === 'premium' ? 'Premium' : 'Free'}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
@@ -524,16 +463,6 @@ export function AdminDashboardPage() {
                         >
                           <Eye size={14} />
                         </ActionIcon>
-                        {extension.status === 'pending_verification' && (
-                          <ActionIcon
-                            variant="light"
-                            color="blue"
-                            size="sm"
-                            onClick={() => openVerificationModal(extension)}
-                          >
-                            <Edit size={14} />
-                          </ActionIcon>
-                        )}
                       </Group>
                     </Table.Td>
                   </Table.Tr>
@@ -558,6 +487,7 @@ export function AdminDashboardPage() {
                   <Table.Th>Role</Table.Th>
                   <Table.Th>Credits</Table.Th>
                   <Table.Th>Qualified</Table.Th>
+                  <Table.Th>Plan</Table.Th>
                   <Table.Th>Joined</Table.Th>
                   <Table.Th>Actions</Table.Th>
                 </Table.Tr>
@@ -567,7 +497,21 @@ export function AdminDashboardPage() {
                   <Table.Tr key={user.id}>
                     <Table.Td>
                       <div>
-                        <Text fw={500}>{user.name || 'No name'}</Text>
+                        <Text 
+                          fw={500}
+                          component="button"
+                          onClick={() => navigateToUserProfile(user.id)}
+                          style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            cursor: 'pointer',
+                            color: 'var(--mantine-color-blue-6)',
+                            textDecoration: 'none'
+                          }}
+                          className="hover:underline"
+                        >
+                          {user.name || 'No name'}
+                        </Text>
                         <Text size="sm" c="dimmed">
                           {user.email}
                         </Text>
@@ -590,6 +534,14 @@ export function AdminDashboardPage() {
                       </Badge>
                     </Table.Td>
                     <Table.Td>
+                      <Badge 
+                        color={user.subscription_status === 'premium' ? 'green' : 'blue'} 
+                        size="sm"
+                      >
+                        {user.subscription_status === 'premium' ? 'Premium' : 'Free'}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
                       <Text size="sm">
                         {new Date(user.created_at).toLocaleDateString()}
                       </Text>
@@ -598,7 +550,7 @@ export function AdminDashboardPage() {
                       <ActionIcon
                         variant="light"
                         size="sm"
-                        onClick={() => openUserModal(user)}
+                        onClick={() => navigateToUserProfile(user.id)}
                       >
                         <Edit size={14} />
                       </ActionIcon>
@@ -614,9 +566,14 @@ export function AdminDashboardPage() {
           <Card withBorder>
             <Group justify="space-between" mb="md">
               <Text fw={600}>Review Assignments</Text>
-              <Badge color="blue">
-                {assignments.filter(a => a.status === 'assigned').length} Active
-              </Badge>
+              <Group>
+                <Badge color="blue">
+                  {assignments.filter(a => a.status === 'assigned').length} Active
+                </Badge>
+                <Badge color="green">
+                  {assignments.filter(a => a.status === 'approved').length} Completed
+                </Badge>
+              </Group>
             </Group>
             <Table>
               <Table.Thead>
@@ -625,7 +582,8 @@ export function AdminDashboardPage() {
                   <Table.Th>Extension</Table.Th>
                   <Table.Th>Reviewer</Table.Th>
                   <Table.Th>Status</Table.Th>
-                  <Table.Th>Due Date</Table.Th>
+                  <Table.Th>Date</Table.Th>
+                  <Table.Th>Rating</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -635,22 +593,61 @@ export function AdminDashboardPage() {
                       <Text fw={500}>#{assignment.assignment_number}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{assignment.extension?.name || 'Unknown'}</Text>
+                      <Text 
+                        size="sm"
+                        component="a" 
+                        href={assignment.extension?.chrome_store_url} 
+                        target="_blank"
+                        style={{ textDecoration: 'none', color: 'inherit' }}
+                        className="hover:underline"
+                      >
+                        {assignment.extension?.name || 'Unknown'}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{assignment.reviewer?.name || 'Unknown'}</Text>
+                      <Text 
+                        size="sm"
+                        component="button"
+                        onClick={() => assignment.reviewer?.id && navigateToUserProfile(assignment.reviewer.id)}
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer',
+                          color: 'var(--mantine-color-blue-6)',
+                          textDecoration: 'none'
+                        }}
+                        className="hover:underline"
+                      >
+                        {assignment.reviewer?.name || 'Unknown'}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <Badge 
-                        color={assignment.status === 'assigned' ? 'blue' : assignment.status === 'submitted' ? 'orange' : 'green'} 
+                        color={assignment.status === 'assigned' ? 'blue' : 'green'} 
                         size="sm"
                       >
-                        {assignment.status}
+                        {assignment.status === 'assigned' ? 'In Progress' : 'Completed'}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm">
-                        {new Date(assignment.due_at).toLocaleDateString()}
+                        {assignment.status === 'approved' && assignment.submitted_at 
+                          ? `Completed: ${new Date(assignment.submitted_at).toLocaleDateString()}`
+                          : `Due: ${new Date(assignment.due_at).toLocaleDateString()}`
+                        }
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">
+                        {assignment.rating ? (
+                          <Group gap="xs">
+                            {[...Array(assignment.rating)].map((_, i) => (
+                              <Star key={i} size={12} fill="#ffd43b" color="#ffd43b" />
+                            ))}
+                          </Group>
+                        ) : (
+                          '-'
+                        )}
                       </Text>
                     </Table.Td>
                   </Table.Tr>
@@ -718,124 +715,6 @@ export function AdminDashboardPage() {
         </Tabs.Panel>
       </Tabs>
 
-      {/* Extension Verification Modal */}
-      <Modal
-        opened={verificationModalOpen}
-        onClose={() => setVerificationModalOpen(false)}
-        title="Extension Verification"
-        size="md"
-      >
-        <form onSubmit={verificationForm.onSubmit(handleVerifyExtension)}>
-          <Stack>
-            {selectedExtension && (
-              <Card withBorder p="md" mb="md">
-                <Group>
-                  <Avatar src={selectedExtension.logo_url} size="md" />
-                  <div>
-                    <Text fw={600}>{selectedExtension.name}</Text>
-                    <Text size="sm" c="dimmed">
-                      {selectedExtension.description}
-                    </Text>
-                    <Button
-                      variant="light"
-                      size="xs"
-                      mt="xs"
-                      onClick={() => window.open(selectedExtension.chrome_store_url, '_blank')}
-                    >
-                      View in Chrome Store
-                    </Button>
-                  </div>
-                </Group>
-              </Card>
-            )}
-            
-            <Select
-              label="Decision"
-              data={[
-                { value: 'verified', label: 'Approve Extension' },
-                { value: 'rejected', label: 'Reject Extension' }
-              ]}
-              {...verificationForm.getInputProps('status')}
-            />
-            
-            {verificationForm.values.status === 'rejected' && (
-              <Textarea
-                label="Rejection Reason"
-                placeholder="Explain why this extension is being rejected..."
-                required
-                rows={3}
-                {...verificationForm.getInputProps('rejection_reason')}
-              />
-            )}
-            
-            <Group justify="flex-end">
-              <Button variant="light" onClick={() => setVerificationModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button 
-                type="submit"
-                color={verificationForm.values.status === 'verified' ? 'green' : 'orange'}
-              >
-                {verificationForm.values.status === 'verified' ? 'Approve' : 'Reject'}
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
-
-      {/* User Management Modal */}
-      <Modal
-        opened={userModalOpen}
-        onClose={() => setUserModalOpen(false)}
-        title="Edit User"
-        size="md"
-      >
-        <form onSubmit={userForm.onSubmit(handleUpdateUser)}>
-          <Stack>
-            {selectedUser && (
-              <Card withBorder p="md" mb="md">
-                <div>
-                  <Text fw={600}>{selectedUser.name}</Text>
-                  <Text size="sm" c="dimmed">{selectedUser.email}</Text>
-                  <Text size="xs" c="dimmed">
-                    Joined: {new Date(selectedUser.created_at).toLocaleDateString()}
-                  </Text>
-                </div>
-              </Card>
-            )}
-            
-            <NumberInput
-              label="Credit Balance"
-              min={0}
-              {...userForm.getInputProps('credit_balance')}
-            />
-            
-            <Select
-              label="Role"
-              data={[
-                { value: 'user', label: 'User' },
-                { value: 'moderator', label: 'Moderator' },
-                { value: 'admin', label: 'Administrator' }
-              ]}
-              {...userForm.getInputProps('role')}
-            />
-            
-            <Switch
-              label="Has Completed Qualification"
-              {...userForm.getInputProps('has_completed_qualification', { type: 'checkbox' })}
-            />
-            
-            <Group justify="flex-end">
-              <Button variant="light" onClick={() => setUserModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                Update User
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
     </Container>
   )
 }
