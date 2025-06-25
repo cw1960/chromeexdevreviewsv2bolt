@@ -933,6 +933,47 @@ export function LandingPage() {
       <Box py={40} bg="gray.9">
         <Container size="lg">
           <Stack align="center" gap="md">
+            {/* Footer Image */}
+            <Group gap="xl" justify="center" align="center">
+              <a 
+                href="https://bolt.new/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{ textDecoration: 'none' }}
+              >
+                <img 
+                  src="https://i.imgur.com/0aNDCFP.png" 
+                  alt="ChromeExDev Footer" 
+                  style={{ 
+                    width: 'auto', 
+                    height: '60px',
+                    objectFit: 'contain',
+                    cursor: 'pointer',
+                    transition: 'opacity 0.2s ease',
+                  }}
+                  className="hover:opacity-80"
+                />
+              </a>
+              <img 
+                src="https://i.imgur.com/wjfokMi.png" 
+                alt="Partner Logo 2"
+                style={{ 
+                  width: 'auto', 
+                  height: '60px',
+                  objectFit: 'contain'
+                }}
+              />
+              <img 
+                src="https://i.imgur.com/FxUHtNU.png" 
+                alt="Supabase Logo" 
+                style={{ 
+                  width: 'auto', 
+                  height: '60px',
+                  objectFit: 'contain'
+                }}
+              />
+            </Group>
+            
             <Group gap="xl" justify="center">
               <Text 
                 component="a" 

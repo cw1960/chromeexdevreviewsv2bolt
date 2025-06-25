@@ -263,16 +263,17 @@ export function UpgradePage() {
                   color="dark"
                   style={{ 
                     position: 'absolute',
-                    top: -10,
+                    top: 15,
                     left: '50%',
-                    transform: 'translateX(-50%)'
+                    transform: 'translateX(-50%)',
+                    zIndex: 1
                   }}
                 >
                   Save 37.5%!
                 </Badge>
                 
                 <Stack align="center" gap="lg" h="100%">
-                  <Stack align="center" gap="xs">
+                  <Stack align="center" gap="xs" style={{ paddingTop: '30px' }}>
                     <Title order={2} c="white">Yearly Plan</Title>
                     <Group align="baseline" gap="xs">
                       <Text size="3rem" fw={800} c="white">
@@ -297,7 +298,6 @@ export function UpgradePage() {
                     color="dark"
                     fullWidth
                     onClick={() => handlePurchase(1)}
-                    loading={purchasing && checkoutLoading}
                     leftSection={<Crown size={20} />}
                     styles={{
                       root: {
